@@ -7,14 +7,14 @@ using System.Text;
 
 namespace SQLWerk.Services
 {
-    public class ExcelReader
+    public class ExcelReader : IExcelReader
     {
         static ExcelReader()
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         }
 
-        public List<ExhibitTableRow> Read (string filePath)
+        public List<ExhibitTableRow> Parse (string filePath)
         {
             var result = new List<ExhibitTableRow>();
 

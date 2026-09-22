@@ -9,7 +9,7 @@ namespace SQLWerk.Data.Extensions
     {
         public static string? GetStringOrNull(this SqliteDataReader r, int i) =>
             r.IsDBNull(i) ? null : r.GetString(i);
-        public static long GetLongOrNull(this SqliteDataReader r, int i) =>
+        public static long GetLong(this SqliteDataReader r, int i) =>
             r.GetInt64(i);
     }
 }

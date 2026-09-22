@@ -11,7 +11,7 @@ namespace SQLWerk.Data.Sqlite
     {
         private const string InsertSql = """
             INSERT INTO Exhibits
-                (Codvuz,Z2, Type, Regnumber, Subject, Grnti, Bossname, Bosstitle, Exhitype, Vystavki, Exponat)
+                (Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat)
             VALUES
                 ($c,$z,$t,$r,$s,$g,$bn,$bt,$e,$v,$ex);
             """;
@@ -26,9 +26,9 @@ namespace SQLWerk.Data.Sqlite
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
                 CREATE TABLE IF NOT EXISTS Exhibits (
-                    Id INTEGER PRIMARY KEY
+                    Id INTEGER PRIMARY KEY,
                     Codvuz TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT, Subject TEXT,
-                    Grnti TEXT, Bossname TEXT, Bosstitle TEXT, Exitype TEXT, Vystavki TEXT, Exponat TEXT
+                    Grnti TEXT, Bossname TEXT, Bosstitle TEXT, Exhitype TEXT, Vystavki TEXT, Exponat TEXT
                 );
                 """;
             cmd.ExecuteNonQuery();
@@ -41,7 +41,7 @@ namespace SQLWerk.Data.Sqlite
             conn.Open();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT Id,Codvuz,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exitype,Vystavki,Exponat
+                SELECT Id,Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat
                 FROM Exhibits;
                 """;
 
@@ -50,7 +50,7 @@ namespace SQLWerk.Data.Sqlite
             {
                 list.Add(new ExhibitTableRow
                 {
-                    Id = r.GetLongOrNull(0),
+                    Id = r.GetLong(0),
                     Codvuz = r.GetStringOrNull(1),
                     Z2 = r.GetStringOrNull(2),
                     Type = r.GetStringOrNull(3),
@@ -73,7 +73,7 @@ namespace SQLWerk.Data.Sqlite
             conn.Open();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT COUNT(*) FROM Exhibits;";
-            return Convert.ToInt32(cmd.ExecuteScalar);
+            return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
         public void SaveAll(IEnumerable<ExhibitTableRow> rows)
