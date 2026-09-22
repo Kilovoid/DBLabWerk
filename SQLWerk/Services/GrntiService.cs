@@ -27,7 +27,7 @@ namespace SQLWerk.Services
                 return codeResult;
             }
             return codeString;
-        }
+            }
 
         public static bool IsValid(string code)
         {
