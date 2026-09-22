@@ -7,27 +7,33 @@ namespace SQLWerk.Services
 {
     public class GrntiService
     {
-        public string GrntiReader(string? codestring)
+        public string ParseGrnti(string? codeString)
         { 
-            if (codestring != null)
+            if (codeString != null)
             {
-                codestring = codestring.Trim();
-                string[] codes = codestring.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
+                codeString = codeString.Trim();
+                string[] codes = codeString.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
 
                 for (int i = 0; i < codes.Length; i++)
                 {
                     codes[i] = codes[i].Trim();
-                    if (!(Regex.IsMatch(codes[i], @"^\d{2}\.\d{2}\.\d{2}$") || Regex.IsMatch(codes[i], @"^\d{2}\.\d{2}$") || Regex.IsMatch(codes[i], @"^\d{2}$")))
+                    if (!(IsValid(codes[i])))
                     {
-                        Console.WriteLine($"Неверный формат");
-                        return codestring;
+                        return codeString;
                     }
                 }
 
-                string coderesult = string.Join(", ", codes);
-                return coderesult;
+                string codeResult = string.Join(", ", codes);
+                return codeResult;
             }
-            return codestring;
+            return codeString;
+        }
+
+        public static bool IsValid(string code)
+        {
+            return (Regex.IsMatch(code, @"^\d{2}\.\d{2}\.\d{2}$") ||
+                Regex.IsMatch(code, @"^\d{2}\.\d{2}$") ||
+                Regex.IsMatch(code, @"^\d{2}$"));
         }
     }
 }
