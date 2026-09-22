@@ -36,7 +36,7 @@ namespace SQLWerk.Services
                         Grnti = Get(reader, 5),
                         Bossname = Get(reader, 6),
                         Bosstitle = Get(reader, 7),
-                        Exitype = Get(reader, 8),
+                        Exhitype = Get(reader, 8),
                         Vystavki = Get(reader, 9),
                         Exponat = Get(reader, 10),
                     });
