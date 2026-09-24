@@ -19,7 +19,7 @@ namespace SQLWerk.ViewModels
     public partial class MainWindowViewModel : ObservableObject
     {
         private readonly IExcelReader _reader;
-        private readonly IExhibitRepository _repo;
+        private readonly IRepository _repo;
 
         [ObservableProperty]
         private ObservableCollection<ExhibitTableRow> rows = new();
@@ -34,7 +34,7 @@ namespace SQLWerk.ViewModels
             _repo = null!;
         }
 
-        public MainWindowViewModel(IExcelReader reader, IExhibitRepository repo)
+        public MainWindowViewModel(IExcelReader reader, IRepository repo)
         {
             _reader = reader;
             _repo = repo;

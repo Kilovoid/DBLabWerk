@@ -9,9 +9,9 @@ namespace SQLWerk.Services
     internal class ImportService
     {
         private readonly IExcelReader _reader;
-        private readonly IExhibitRepository _repo;
+        private readonly IRepository _repo;
 
-        public ImportService(IExcelReader reader, IExhibitRepository repo)
+        public ImportService(IExcelReader reader, IRepository repo)
         {
             _reader = reader;
             _repo = repo;
