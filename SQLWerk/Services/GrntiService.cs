@@ -7,7 +7,7 @@ namespace SQLWerk.Services
 {
     public class GrntiService
     {
-        public string ParseGrnti(string? codeString)
+        public static string ParseGrnti(string? codeString)
         { 
             if (codeString != null)
             {

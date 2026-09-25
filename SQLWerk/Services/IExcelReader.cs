@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
+using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,6 @@ namespace SQLWerk.Services
 {
     public interface IExcelReader
     {
-        List<ExhibitTableRow> Parse(string filePath);
+        List<T> Parse<T>(string filePath) where T : ITableRow, new();
     }
 }

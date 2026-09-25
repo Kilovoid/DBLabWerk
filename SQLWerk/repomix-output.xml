@@ -1,0 +1,1195 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+Assets/
+  avalonia-logo.ico
+Data/
+  Abstractions/
+    IConnectionFactory.cs
+    IRepository.cs
+    ITableRow.cs
+  Extensions/
+    SqliteCommandExtensions.cs
+    SqliteDataReaderExtensions.cs
+  Sqlite/
+    ExhibitRepository.cs
+    GrntiRepository.cs
+    SqliteConnectionFactory.cs
+    VuzRepository.cs
+Models/
+  ExhibitTableRow.cs
+  GrntiTableRow.cs
+  VuzTableRow.cs
+Services/
+  ExcelReader.cs
+  GrntiService.cs
+  IExcelReader.cs
+  ImportService.cs
+ViewModels/
+  MainViewModel.cs
+  MainWindowViewModel.cs
+  ViewModelBase.cs
+Views/
+  MainWindow.axaml
+  MainWindow.axaml.cs
+App.axaml
+App.axaml.cs
+app.manifest
+Program.cs
+SQLWerk.csproj
+ViewLocator.cs
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="Data/Abstractions/IConnectionFactory.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    internal interface IConnectionFactory
+    {
+        SqliteConnection Create();
+    }
+}
+</file>
+
+<file path="Data/Abstractions/IRepository.cs">
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IRepository<T>
+    {
+        void EnsureCreated();
+        List<T> GetAll();
+        int Count();
+        void SaveAll(IEnumerable<T> rows);
+    }
+
+
+    public interface IExhibitRepository : IRepository<ExhibitTableRow>{}
+
+
+    public interface IVuzRepository : IRepository<VuzTableRow>{}
+
+
+    public interface IGrntiRepository : IRepository<GrntiTableRow>{}
+}
+</file>
+
+<file path="Data/Abstractions/ITableRow.cs">
+using ExcelDataReader;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface ITableRow
+    {
+        void FillTable(IExcelDataReader reader);
+    }
+}
+</file>
+
+<file path="Data/Extensions/SqliteCommandExtensions.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Extensions
+{
+    public static class SqliteCommandExtensions // Класс для человеческого написания команд добавления и тд потому что у нас много полей
+    {
+        public static SqliteCommand AddParam (this SqliteCommand cmd, string name, object? value)
+        {
+            cmd.Parameters.Add(new SqliteParameter(name, value ?? DBNull.Value)); // Чтобы было не C# null, a DBNull
+            return cmd;
+        }
+    }
+}
+</file>
+
+<file path="Data/Extensions/SqliteDataReaderExtensions.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Extensions
+{
+    public static class SqliteDataReaderExtensions
+    {
+        public static string? GetStringOrNull(this SqliteDataReader r, int i) =>
+            r.IsDBNull(i) ? null : r.GetString(i);
+        public static long GetLong(this SqliteDataReader r, int i) =>
+            r.GetInt64(i);
+    }
+}
+</file>
+
+<file path="Data/Sqlite/ExhibitRepository.cs">
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Extensions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Sqlite
+{
+    internal class ExhibitRepository : IExhibitRepository
+    {
+        private const string InsertSql = """
+            INSERT INTO Exhibits
+                (Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat)
+            VALUES
+                ($c,$z,$t,$r,$s,$g,$bn,$bt,$e,$v,$ex);
+            """;
+        private readonly IConnectionFactory _factory;
+
+        public ExhibitRepository(IConnectionFactory factory) => _factory = factory;
+        public void EnsureCreated()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS Exhibits (
+                    Id INTEGER PRIMARY KEY,
+                    Codvuz TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT, Subject TEXT,
+                    Grnti TEXT, Bossname TEXT, Bosstitle TEXT, Exhitype TEXT, Vystavki TEXT, Exponat TEXT
+                );
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        public List<ExhibitTableRow> GetAll()
+        {
+            var list = new List<ExhibitTableRow>();
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT Id,Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat
+                FROM Exhibits;
+                """;
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                list.Add(new ExhibitTableRow
+                {
+                    Id = r.GetLong(0),
+                    Codvuz = r.GetStringOrNull(1),
+                    Z2 = r.GetStringOrNull(2),
+                    Type = r.GetStringOrNull(3),
+                    Regnumber = r.GetStringOrNull(4),
+                    Subject = r.GetStringOrNull(5),
+                    Grnti = r.GetStringOrNull(6),
+                    Bossname = r.GetStringOrNull(7),
+                    Bosstitle = r.GetStringOrNull(8),
+                    Exhitype = r.GetStringOrNull(9),
+                    Vystavki = r.GetStringOrNull(10),
+                    Exponat = r.GetStringOrNull(11),
+                });
+            }
+            return list;
+        }
+
+        public int Count()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM Exhibits;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        public void SaveAll(IEnumerable<ExhibitTableRow> rows)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var tx = conn.BeginTransaction();
+
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = InsertSql;
+
+            foreach (var row in rows)
+            {
+                cmd.Parameters.Clear();
+                cmd.AddParam("$c", row.Codvuz);
+                cmd.AddParam("$z", row.Z2);
+                cmd.AddParam("$t", row.Type);
+                cmd.AddParam("$r", row.Regnumber);
+                cmd.AddParam("$s", row.Subject);
+                cmd.AddParam("$g", row.Grnti);
+                cmd.AddParam("$bn", row.Bossname);
+                cmd.AddParam("$bt", row.Bosstitle);
+                cmd.AddParam("$e", row.Exhitype);
+                cmd.AddParam("$v", row.Vystavki);
+                cmd.AddParam("$ex", row.Exponat);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+    }
+}
+</file>
+
+<file path="Data/Sqlite/GrntiRepository.cs">
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using SQLWerk.Data.Extensions;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Sqlite
+{
+    internal class GrntiRepository : IGrntiRepository
+    {
+        private const string InsertSql = """
+            INSERT INTO Grnti
+                (Codrub,Rubrika)
+            VALUES
+                ($c,$r);
+            """;
+        private readonly IConnectionFactory _factory;
+
+        public GrntiRepository(IConnectionFactory factory) => _factory = factory;
+        public void EnsureCreated()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS Grnti (
+                    Id INTEGER PRIMARY KEY,
+                    Codrub TEXT, Rubrika TEXT
+                );
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        public List<GrntiTableRow> GetAll()
+        {
+            var list = new List<GrntiTableRow>();
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT Id,Codrub,Rubrika
+                FROM Grnti;
+                """;
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                list.Add(new GrntiTableRow
+                {
+                    Id = r.GetLong(0),
+                    Codrub = r.GetStringOrNull(1),
+                    Rubrika = r.GetStringOrNull(2),
+                });
+            }
+            return list;
+        }
+
+        public int Count()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM Grnti;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        public void SaveAll(IEnumerable<GrntiTableRow> rows)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var tx = conn.BeginTransaction();
+
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = InsertSql;
+
+            foreach (var row in rows)
+            {
+                cmd.Parameters.Clear();
+                cmd.AddParam("$c", row.Codrub);
+                cmd.AddParam("$r", row.Rubrika);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+    }
+}
+</file>
+
+<file path="Data/Sqlite/SqliteConnectionFactory.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Data.Abstractions;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Data.Sqlite
+{
+    internal class SqliteConnectionFactory : IConnectionFactory
+    {
+        private readonly string _cs;
+
+        public SqliteConnectionFactory(string dbPath) =>
+            _cs = $"Data Source={Path.GetFullPath(dbPath)}";
+
+        public SqliteConnection Create() => new SqliteConnection(_cs);
+    }
+}
+</file>
+
+<file path="Data/Sqlite/VuzRepository.cs">
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Extensions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Sqlite
+{
+    internal class VuzRepository : IVuzRepository
+    {
+        private const string InsertSql = """
+            INSERT INTO Vuz
+                (Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof)
+            VALUES
+                ($co,$z1,$z1f,$z2,$r,$ci,$st,$ob,$on,$gv,$p);
+            """;
+        private readonly IConnectionFactory _factory;
+
+        public VuzRepository(IConnectionFactory factory) => _factory = factory;
+        public void EnsureCreated()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS Vuz (
+                    Id INTEGER PRIMARY KEY,
+                    Codvuz TEXT, Z1 TEXT, Z1Full TEXT, Z2 TEXT, Region TEXT,
+                    City TEXT, Status TEXT, Obl TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
+                );
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        public List<VuzTableRow> GetAll()
+        {
+            var list = new List<VuzTableRow>();
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT Id,Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof
+                FROM Vuz;
+                """;
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                list.Add(new VuzTableRow
+                {
+                    Id = r.GetLong(0),
+                    Codvuz = r.GetStringOrNull(1),
+                    Z1 = r.GetStringOrNull(2),
+                    Z1Full = r.GetStringOrNull(3),
+                    Z2 = r.GetStringOrNull(4),
+                    Region = r.GetStringOrNull(5),
+                    City = r.GetStringOrNull(6),
+                    Status = r.GetStringOrNull(7),
+                    Obl = r.GetStringOrNull(8),
+                    OblName = r.GetStringOrNull(9),
+                    GrVed = r.GetStringOrNull(10),
+                    Prof = r.GetStringOrNull(11),
+                });
+            }
+            return list;
+        }
+
+        public int Count()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM Vuz;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        public void SaveAll(IEnumerable<VuzTableRow> rows)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var tx = conn.BeginTransaction();
+
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = InsertSql;
+
+            foreach (var row in rows)
+            {
+                cmd.Parameters.Clear();
+                cmd.AddParam("$co", row.Codvuz);
+                cmd.AddParam("$z1", row.Z1);
+                cmd.AddParam("$z1f", row.Z1Full);
+                cmd.AddParam("$z2", row.Z2);
+                cmd.AddParam("$r", row.Region);
+                cmd.AddParam("$ci", row.City);
+                cmd.AddParam("$st", row.Status);
+                cmd.AddParam("$ob", row.Obl);
+                cmd.AddParam("$on", row.OblName);
+                cmd.AddParam("$gv", row.GrVed);
+                cmd.AddParam("$p", row.Prof);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+    }
+}
+</file>
+
+<file path="Models/ExhibitTableRow.cs">
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Services;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Models
+{
+    public class ExhibitTableRow : ITableRow
+    {
+        public long Id { get; set; }
+        public string? Codvuz { get; set; }
+        public string? Z2 { get; set; }
+        public string? Type { get; set; }
+        public string? Regnumber { get; set; }
+        public string? Subject { get; set; }
+        public string? Grnti { get; set; }
+        public string? Bossname { get; set; }
+        public string? Bosstitle { get; set; }
+        public string? Exhitype { get; set; }
+        public string? Vystavki { get; set; }
+        public string? Exponat { get; set; }
+
+        public void FillTable(IExcelDataReader r)
+        {
+            Codvuz = ExcelReader.Get(r, 0);
+            Z2 = ExcelReader.Get(r, 1);
+            Type = ExcelReader.Get(r, 2);
+            Regnumber = ExcelReader.Get(r, 3);
+            Subject = ExcelReader.Get(r, 4);
+            Grnti = ExcelReader.Get(r, 5);
+            Bossname = ExcelReader.Get(r, 6);
+            Bosstitle = ExcelReader.Get(r, 7);
+            Exhitype = ExcelReader.Get(r, 8);
+            Vystavki = ExcelReader.Get(r, 9);
+            Exponat = ExcelReader.Get(r, 10);
+        }
+    }
+}
+</file>
+
+<file path="Models/GrntiTableRow.cs">
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Services;
+using System;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace SQLWerk.Models
+{
+    public class GrntiTableRow : ITableRow
+    {
+        public long Id { get; set; }
+        public string? Codrub { get; set; }
+        public string? Rubrika { get; set; }
+
+        public void FillTable(IExcelDataReader r)
+        {
+            Codrub = ExcelReader.Get(r, 0);
+            Rubrika = ExcelReader.Get(r, 1);
+        }
+    }
+}
+</file>
+
+<file path="Models/VuzTableRow.cs">
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Services;
+using System;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace SQLWerk.Models
+{
+    public class VuzTableRow : ITableRow
+    {
+        public long Id { get; set; }
+        public string? Codvuz { get; set; }
+        public string? Z1 { get; set; }
+        public string? Z1Full { get; set; }
+        public string? Z2 { get; set; }
+        public string? Region { get; set; }
+        public string? City { get; set; }
+        public string? Status { get; set; }
+        public string? Obl { get; set; }
+        public string? OblName { get; set; }
+        public string? GrVed { get; set; }
+        public string? Prof { get; set; }
+
+        public void FillTable(IExcelDataReader r)
+        {
+            Codvuz = ExcelReader.Get(r, 0);
+            Z1 = ExcelReader.Get(r, 1);
+            Z1Full = ExcelReader.Get(r, 2);
+            Z2 = ExcelReader.Get(r, 3);
+            Region = ExcelReader.Get(r, 4);
+            City = ExcelReader.Get(r, 5);
+            Status = ExcelReader.Get(r, 6);
+            Obl = ExcelReader.Get(r, 7);
+            OblName = ExcelReader.Get(r, 8);
+            GrVed = ExcelReader.Get(r, 9);
+            Prof = ExcelReader.Get(r, 10);
+        }
+    }
+}
+</file>
+
+<file path="Services/ExcelReader.cs">
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    public class ExcelReader : IExcelReader
+    {
+        static ExcelReader()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        }
+
+        public List<T> Parse<T>(string filePath) where T : ITableRow, new()
+        {
+            var result = new List<T>();
+
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+
+            reader.Read();
+
+            while (reader.Read())
+            {
+                var row = new T();
+                row.FillTable(reader);
+                result.Add(row);
+            }
+            return result;
+        }
+
+        internal static string? Get(IExcelDataReader reader, int idx)
+        {
+            if (idx >= reader.FieldCount) return null;
+
+            var v = reader.GetValue(idx);
+            return v?.ToString();
+        }
+    }
+}
+</file>
+
+<file path="Services/GrntiService.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace SQLWerk.Services
+{
+    public class GrntiService
+    {
+        public string ParseGrnti(string? codeString)
+        { 
+            if (codeString != null)
+            {
+                codeString = codeString.Trim();
+                string[] codes = codeString.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
+
+                for (int i = 0; i < codes.Length; i++)
+                {
+                    codes[i] = codes[i].Trim();
+                    if (!(IsValid(codes[i])))
+                    {
+                        return codeString;
+                    }
+                }
+
+                string codeResult = string.Join(", ", codes);
+                return codeResult;
+            }
+            return codeString;
+            }
+
+        public static bool IsValid(string code)
+        {
+            return (Regex.IsMatch(code, @"^\d{2}\.\d{2}\.\d{2}$") ||
+                Regex.IsMatch(code, @"^\d{2}\.\d{2}$") ||
+                Regex.IsMatch(code, @"^\d{2}$"));
+        }
+    }
+}
+</file>
+
+<file path="Services/IExcelReader.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    public interface IExcelReader
+    {
+        List<T> Parse<T>(string filePath) where T : ITableRow, new();
+    }
+}
+</file>
+
+<file path="Services/ImportService.cs">
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Sqlite;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    public class ImportService<T> where T : ITableRow, new()
+    {
+        private readonly IExcelReader _reader;
+        private readonly IRepository<T> _repo;
+        public ImportService(IExcelReader reader, IRepository<T> repo)
+        {
+            _reader = reader;
+            _repo = repo;
+        }
+
+        public (int imported, int total) ImportIfEmpty(string? xlsPath)
+        {
+            _repo.EnsureCreated();
+
+            if (_repo.Count() > 0) return (0, _repo.Count());
+            if (xlsPath is null || !File.Exists(xlsPath)) return(0, 0);
+
+            var read = _reader.Parse<T>(xlsPath);
+            _repo.SaveAll(read);
+            return (read.Count, read.Count);
+        }
+        public List<T> LoadAll() => _repo.GetAll();
+    }
+}
+</file>
+
+<file path="ViewModels/MainViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+
+namespace SQLWerk.ViewModels;
+
+public partial class MainViewModel : ViewModelBase
+{
+    [ObservableProperty]
+    public partial string Greeting { get; set; } = "Welcome to Avalonia!";
+}
+</file>
+
+<file path="ViewModels/MainWindowViewModel.cs">
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Text;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SQLWerk.Services;
+using Avalonia.Platform.Storage;
+using System.IO;
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+
+namespace SQLWerk.ViewModels
+{
+    public partial class MainWindowViewModel : ObservableObject
+    {
+        private readonly ImportService<ExhibitTableRow> _exhibitImport;
+        private readonly ImportService<VuzTableRow> _vuzImport;
+        private readonly ImportService<GrntiTableRow> _grntiImport;
+
+        [ObservableProperty]
+        private ObservableCollection<ExhibitTableRow> _exhibits = new();
+
+        [ObservableProperty]
+        private ObservableCollection<VuzTableRow> _vuzes = new();
+
+        [ObservableProperty]
+        private ObservableCollection<GrntiTableRow> _grnti = new();
+
+        [ObservableProperty]
+        private string _status = "Loading...";
+
+        [ObservableProperty]
+        private int _rowCount;
+
+        [ObservableProperty]
+        private bool _showExhibits = true;
+
+        [ObservableProperty]
+        private bool _showVuz;
+
+        [ObservableProperty]
+        private bool _showGrnti;
+
+        public MainWindowViewModel(ImportService<ExhibitTableRow> exhibitImport,
+            ImportService<VuzTableRow> vuzImport,
+            ImportService<GrntiTableRow> grntiImport)
+        {
+            _exhibitImport = exhibitImport;
+            _vuzImport = vuzImport;
+            _grntiImport = grntiImport;
+        }
+
+        public void Initialize(string exhibitsPath, string vuzPath, string grntiPath)
+        {
+            _exhibitImport.ImportIfEmpty(exhibitsPath);
+            _vuzImport.ImportIfEmpty(vuzPath);
+            _grntiImport.ImportIfEmpty(grntiPath);
+
+            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
+            Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
+            Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
+
+            SelectExhibitsCommand.Execute(null);
+        }
+
+        [RelayCommand]
+        public void SelectExhibits()
+        {
+            ShowExhibits = true;
+            ShowVuz = false;
+            ShowGrnti = false;
+
+            RowCount = Exhibits.Count;
+            Status = $"Exhibits: {RowCount} rows";
+        }
+
+        [RelayCommand]
+        public void SelectVuz()
+        {
+            ShowExhibits = false;
+            ShowVuz = true;
+            ShowGrnti = false;
+
+            RowCount = Vuzes.Count;
+            Status = $"Vuz: {RowCount} rows";
+        }
+
+        [RelayCommand]
+        public void SelectGrnti()
+        {
+            ShowExhibits = false;
+            ShowVuz = false;
+            ShowGrnti = true;
+
+            RowCount = Grnti.Count;
+            Status = $"Grnti: {RowCount} rows";
+        }
+    }
+
+
+        public sealed record GrntiRowVm(int rowNumber, string Original, string Formatted, bool IsValid)
+        {
+            public string Status => IsValid ? "OK" : "Error";
+
+            public IBrush RowBackGround => IsValid ? Brushes.Transparent : Brushes.Red;
+    }
+}
+</file>
+
+<file path="ViewModels/ViewModelBase.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+
+namespace SQLWerk.ViewModels;
+
+public abstract class ViewModelBase : ObservableObject
+{
+}
+</file>
+
+<file path="Views/MainWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Width="1500" Height="850"
+        Title="Выставки МО">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top"
+            Orientation="Horizontal"
+            Spacing="8"
+            Margin="8">
+        <Button Content="Exhibits"
+            Command="{Binding SelectExhibitsCommand}" />
+        <Button Content="Vuz"
+            Command="{Binding SelectVuzCommand}" />
+        <Button Content="Grnti"
+            Command="{Binding SelectGrntiCommand}" />
+
+        <TextBlock Text="{Binding Status}"
+               VerticalAlignment="Center"
+               Margin="16,0,0,0" />
+        </StackPanel>
+
+        <Grid>
+            <DataGrid ItemsSource="{Binding Exhibits}"
+                      IsVisible="{Binding ShowExhibits}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding Vuzes}"
+                      IsVisible="{Binding ShowVuz}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding Grnti}"
+                      IsVisible="{Binding ShowGrnti}"
+                      AutoGenerateColumns="True" />
+        </Grid>
+
+    </DockPanel>
+</Window>
+</file>
+
+<file path="Views/MainWindow.axaml.cs">
+using Avalonia.Controls;
+
+namespace SQLWerk.Views;
+
+public partial class MainWindow : Window
+{
+    public MainWindow()
+    {
+        InitializeComponent();
+    }
+}
+</file>
+
+<file path="App.axaml">
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SQLWerk.App"
+             xmlns:local="using:SQLWerk"
+             RequestedThemeVariant="Dark">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source ="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+    </Application.Styles>
+</Application>
+</file>
+
+<file path="App.axaml.cs">
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.DependencyInjection;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Sqlite;
+using SQLWerk.Models;
+using SQLWerk.Services;
+using SQLWerk.ViewModels;
+using SQLWerk.Views;
+using System;
+using System.IO;
+
+namespace SQLWerk;
+
+public partial class App : Application
+{
+    public static IServiceProvider Services { get; private set; } = null!;
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+    }
+
+    public override void OnFrameworkInitializationCompleted()
+    {
+        try
+        {
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            Services = services.BuildServiceProvider();
+
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var exhibitsPath = Path.Combine(baseDir, "Vyst_mo.xls");
+                var vuzPath = Path.Combine(baseDir, "VUZ.xls");
+                var grntiPath = Path.Combine(baseDir, "grntirub.xls");
+
+                var vm = Services.GetRequiredService<MainWindowViewModel>();
+                vm.Initialize(exhibitsPath, vuzPath, grntiPath);
+                desktop.MainWindow = new MainWindow { DataContext = vm };
+            }
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText(
+                Path.Combine(AppContext.BaseDirectory, "startup-error.txt"),
+                ex.ToString());
+            throw;
+        }
+
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<IExcelReader, ExcelReader>();
+        var dbPath = Path.Combine(AppContext.BaseDirectory, "sqlwerk.db");
+        services.AddSingleton<IConnectionFactory>(_ => new SqliteConnectionFactory(dbPath));
+
+        services.AddScoped<IExhibitRepository, ExhibitRepository>();
+        services.AddScoped<IVuzRepository, VuzRepository>();
+        services.AddScoped<IGrntiRepository, GrntiRepository>();
+
+        services.AddScoped<IRepository<ExhibitTableRow>>(sp => sp.GetRequiredService<IExhibitRepository>());
+        services.AddScoped<IRepository<VuzTableRow>>(sp => sp.GetRequiredService<IVuzRepository>());
+        services.AddScoped<IRepository<GrntiTableRow>>(sp => sp.GetRequiredService<IGrntiRepository>());
+
+        services.AddScoped < ImportService<ExhibitTableRow>>();
+        services.AddScoped<ImportService<VuzTableRow>>();
+        services.AddScoped<ImportService<GrntiTableRow>>();
+
+        services.AddTransient<MainWindowViewModel>();
+    }
+}
+</file>
+
+<file path="app.manifest">
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <!-- This manifest is used on Windows only.
+       Don't remove it as it might cause problems with window transparency and embedded controls.
+       For more details visit https://learn.microsoft.com/en-us/windows/win32/sbscs/application-manifests -->
+  <assemblyIdentity version="1.0.0.0" name="SQLWerk.Desktop"/>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- A list of the Windows versions that this application has been tested on
+           and is designed to work with. Uncomment the appropriate elements
+           and Windows will automatically select the most compatible environment. -->
+
+      <!-- Windows 10 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>
+</file>
+
+<file path="Program.cs">
+using Avalonia;
+using System;
+
+namespace SQLWerk;
+
+sealed class Program
+{
+    // Initialization code. Don't use any Avalonia, third-party APIs or any
+    // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
+    // yet and stuff might break.
+    [STAThread]
+    public static void Main(string[] args) => BuildAvaloniaApp()
+        .StartWithClassicDesktopLifetime(args);
+
+    // Avalonia configuration, don't remove; also used by visual designer.
+    public static AppBuilder BuildAvaloniaApp()
+        => AppBuilder.Configure<App>()
+            .UsePlatformDetect()
+#if DEBUG
+            .WithDeveloperTools()
+#endif
+            .WithInterFont()
+            .LogToTrace();
+}
+</file>
+
+<file path="SQLWerk.csproj">
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SQLWerk</RootNamespace>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Dapper" Version="2.1.86" />
+    <PackageReference Include="ExcelDataReader" Version="3.9.0" />
+    <PackageReference Include="ExcelDataReader.DataSet" Version="3.9.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EditorConfigFiles Remove="E:\SQLWerk\SQLWerk\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="E:\SQLWerk\SQLWerk\.editorconfig" />
+  </ItemGroup>
+</Project>
+</file>
+
+<file path="ViewLocator.cs">
+using System;
+using System.Diagnostics.CodeAnalysis;
+using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using SQLWerk.ViewModels;
+
+namespace SQLWerk;
+
+/// <summary>
+/// Given a view model, returns the corresponding view if possible.
+/// </summary>
+[RequiresUnreferencedCode(
+    "Default implementation of ViewLocator involves reflection which may be trimmed away.",
+    Url = "https://docs.avaloniaui.net/docs/concepts/view-locator")]
+public class ViewLocator : IDataTemplate
+{
+    public Control? Build(object? param)
+    {
+        if (param is null)
+            return null;
+        
+        var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
+        var type = Type.GetType(name);
+
+        if (type != null)
+        {
+            return (Control)Activator.CreateInstance(type)!;
+        }
+        
+        return new TextBlock { Text = "Not Found: " + name };
+    }
+
+    public bool Match(object? data)
+    {
+        return data is ViewModelBase;
+    }
+}
+</file>
+
+</files>

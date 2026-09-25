@@ -1,25 +1,38 @@
 ﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SQLWerk.ViewModels"
-        xmlns:models="using:SQLWerk.Models"
         x:Class="SQLWerk.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1500" Height="850"
         Title="Выставки МО">
     <DockPanel>
-        <Border DockPanel.Dock="Top"
-                Background="Black"
-                Padding="8">
-            <TextBlock Text="{Binding Status}" FontWeight="Bold"/>
-        </Border>
+        <StackPanel DockPanel.Dock="Top"
+            Orientation="Horizontal"
+            Spacing="8"
+            Margin="8">
+        <Button Content="Exhibits"
+            Command="{Binding SelectExhibitsCommand}" />
+        <Button Content="Vuz"
+            Command="{Binding SelectVuzCommand}" />
+        <Button Content="Grnti"
+            Command="{Binding SelectGrntiCommand}" />
 
-        <DataGrid ItemsSource="{Binding Rows}"
-                  AutoGenerateColumns="True"
-                  IsReadOnly="True"
-                  CanUserResizeColumns="True"
-                  CanUserSortColumns="True"
-                  GridLinesVisibility="All"
-                  HeadersVisibility="Column"
-                  RowBackground="DarkBlue"/>
+        <TextBlock Text="{Binding Status}"
+               VerticalAlignment="Center"
+               Margin="16,0,0,0" />
+        </StackPanel>
+
+        <Grid>
+            <DataGrid ItemsSource="{Binding Exhibits}"
+                      IsVisible="{Binding ShowExhibits}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding Vuzes}"
+                      IsVisible="{Binding ShowVuz}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding Grnti}"
+                      IsVisible="{Binding ShowGrnti}"
+                      AutoGenerateColumns="True" />
+        </Grid>
+
     </DockPanel>
 </Window>
