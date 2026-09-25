@@ -36,9 +36,9 @@ namespace SQLWerk.Services
 
         public static bool IsValid(string code)
         {
-            return (Regex.IsMatch(code, @"^\d{2}\.\d{2}\.\d{2}$") ||
-                Regex.IsMatch(code, @"^\d{2}\.\d{2}$") ||
-                Regex.IsMatch(code, @"^\d{2}$"));
+            return (Regex.IsMatch(code, @"\A\d{2}\.\d{2}\.\d{2}\z") ||
+                Regex.IsMatch(code, @"\A\d{2}\.\d{2}\z") ||
+                Regex.IsMatch(code, @"\A\d{2}\z"));
         }
     }
 }
