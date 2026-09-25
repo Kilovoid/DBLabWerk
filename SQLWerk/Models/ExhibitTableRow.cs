@@ -29,7 +29,7 @@ namespace SQLWerk.Models
             Type = ExcelReader.Get(r, 2);
             Regnumber = ExcelReader.Get(r, 3);
             Subject = ExcelReader.Get(r, 4);
-            Grnti = ExcelReader.Get(r, 5);
+            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5));
             Bossname = ExcelReader.Get(r, 6);
             Bosstitle = ExcelReader.Get(r, 7);
             Exhitype = ExcelReader.Get(r, 8);
