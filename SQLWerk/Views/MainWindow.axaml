@@ -6,55 +6,32 @@
         Width="1500" Height="850"
         Title="Выставки МО">
     <DockPanel>
+        <StackPanel DockPanel.Dock="Top"
+            Orientation="Horizontal"
+            Spacing="8"
+            Margin="8">
+        <Button Content="Exhibits"
+            Command="{Binding SelectExhibitsCommand}" />
+        <Button Content="Vuz"
+            Command="{Binding SelectVuzCommand}" />
+        <Button Content="Grnti"
+            Command="{Binding SelectGrntiCommand}" />
 
-        <!-- Верхняя панель: кнопки + статус -->
-        <Border DockPanel.Dock="Top"
-                Background="Black"
-                Padding="8">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Exhibits" Command="{Binding SelectExhibitsCommand}"/>
-                <Button Content="Vuz"      Command="{Binding SelectVuzCommand}"/>
-                <Button Content="Grnti"    Command="{Binding SelectGrntiCommand}"/>
+        <TextBlock Text="{Binding Status}"
+               VerticalAlignment="Center"
+               Margin="16,0,0,0" />
+        </StackPanel>
 
-                <TextBlock Text="{Binding Status}"
-                           FontWeight="Bold"
-                           Foreground="White"
-                           VerticalAlignment="Center"
-                           Margin="16,0,0,0"/>
-            </StackPanel>
-        </Border>
-
-        <!-- Область с таблицами -->
         <Grid>
             <DataGrid ItemsSource="{Binding Exhibits}"
                       IsVisible="{Binding ShowExhibits}"
-                      AutoGenerateColumns="True"
-                      IsReadOnly="True"
-                      CanUserResizeColumns="True"
-                      CanUserSortColumns="True"
-                      GridLinesVisibility="All"
-                      HeadersVisibility="Column"
-                      RowBackground="DarkBlue"/>
-
+                      AutoGenerateColumns="True" />
             <DataGrid ItemsSource="{Binding Vuzes}"
                       IsVisible="{Binding ShowVuz}"
-                      AutoGenerateColumns="True"
-                      IsReadOnly="True"
-                      CanUserResizeColumns="True"
-                      CanUserSortColumns="True"
-                      GridLinesVisibility="All"
-                      HeadersVisibility="Column"
-                      RowBackground="DarkBlue"/>
-
+                      AutoGenerateColumns="True" />
             <DataGrid ItemsSource="{Binding Grnti}"
                       IsVisible="{Binding ShowGrnti}"
-                      AutoGenerateColumns="True"
-                      IsReadOnly="True"
-                      CanUserResizeColumns="True"
-                      CanUserSortColumns="True"
-                      GridLinesVisibility="All"
-                      HeadersVisibility="Column"
-                      RowBackground="DarkBlue"/>
+                      AutoGenerateColumns="True" />
         </Grid>
 
     </DockPanel>
