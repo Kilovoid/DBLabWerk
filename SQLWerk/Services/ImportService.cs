@@ -3,6 +3,7 @@ using SQLWerk.Data.Sqlite;
 using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace SQLWerk.Services
@@ -17,10 +18,12 @@ namespace SQLWerk.Services
             _repo = repo;
         }
 
-        public (int imported, int total) ImportIfEmpty(string xlsPath)
+        public (int imported, int total) ImportIfEmpty(string? xlsPath)
         {
             _repo.EnsureCreated();
+
             if (_repo.Count() > 0) return (0, _repo.Count());
+            if (xlsPath is null || !File.Exists(xlsPath)) return(0, 0);
 
             var read = _reader.Parse<T>(xlsPath);
             _repo.SaveAll(read);

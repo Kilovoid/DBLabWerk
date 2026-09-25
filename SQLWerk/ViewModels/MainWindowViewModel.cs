@@ -55,16 +55,11 @@ namespace SQLWerk.ViewModels
             _grntiImport = grntiImport;
         }
 
-        public void Initialize(string xlsPath)
+        public void Initialize(string exhibitsPath, string vuzPath, string grntiPath)
         {
-            if (File.Exists(xlsPath))
-            {
-                var (imported, _) = _exhibitImport.ImportIfEmpty(xlsPath);
-                if (imported > 0)
-                {
-                    Status = $"Imported {imported} rows from {Path.GetFileName(xlsPath)}";
-                }
-            }
+            _exhibitImport.ImportIfEmpty(exhibitsPath);
+            _vuzImport.ImportIfEmpty(vuzPath);
+            _grntiImport.ImportIfEmpty(grntiPath);
 
             Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
             Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
