@@ -1,5 +1,8 @@
-﻿using System;
+﻿using ExcelDataReader;
+using SQLWerk.Services;
+using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace SQLWerk.Models
@@ -9,5 +12,11 @@ namespace SQLWerk.Models
         public long Id { get; set; }
         public string? Codrub { get; set; }
         public string? Rubrika { get; set; }
+
+        public void FillTable(IExcelDataReader r)
+        {
+            Codrub = ExcelReader.Get(r, 0);
+            Rubrika = ExcelReader.Get(r, 1);
+        }
     }
 }

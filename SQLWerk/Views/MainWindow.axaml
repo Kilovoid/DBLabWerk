@@ -1,25 +1,61 @@
 ﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SQLWerk.ViewModels"
-        xmlns:models="using:SQLWerk.Models"
         x:Class="SQLWerk.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1500" Height="850"
         Title="Выставки МО">
     <DockPanel>
+
+        <!-- Верхняя панель: кнопки + статус -->
         <Border DockPanel.Dock="Top"
                 Background="Black"
                 Padding="8">
-            <TextBlock Text="{Binding Status}" FontWeight="Bold"/>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Exhibits" Command="{Binding SelectExhibitsCommand}"/>
+                <Button Content="Vuz"      Command="{Binding SelectVuzCommand}"/>
+                <Button Content="Grnti"    Command="{Binding SelectGrntiCommand}"/>
+
+                <TextBlock Text="{Binding Status}"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           VerticalAlignment="Center"
+                           Margin="16,0,0,0"/>
+            </StackPanel>
         </Border>
 
-        <DataGrid ItemsSource="{Binding Rows}"
-                  AutoGenerateColumns="True"
-                  IsReadOnly="True"
-                  CanUserResizeColumns="True"
-                  CanUserSortColumns="True"
-                  GridLinesVisibility="All"
-                  HeadersVisibility="Column"
-                  RowBackground="DarkBlue"/>
+        <!-- Область с таблицами -->
+        <Grid>
+            <DataGrid ItemsSource="{Binding Exhibits}"
+                      IsVisible="{Binding ShowExhibits}"
+                      AutoGenerateColumns="True"
+                      IsReadOnly="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="All"
+                      HeadersVisibility="Column"
+                      RowBackground="DarkBlue"/>
+
+            <DataGrid ItemsSource="{Binding Vuzes}"
+                      IsVisible="{Binding ShowVuz}"
+                      AutoGenerateColumns="True"
+                      IsReadOnly="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="All"
+                      HeadersVisibility="Column"
+                      RowBackground="DarkBlue"/>
+
+            <DataGrid ItemsSource="{Binding Grnti}"
+                      IsVisible="{Binding ShowGrnti}"
+                      AutoGenerateColumns="True"
+                      IsReadOnly="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="All"
+                      HeadersVisibility="Column"
+                      RowBackground="DarkBlue"/>
+        </Grid>
+
     </DockPanel>
 </Window>
