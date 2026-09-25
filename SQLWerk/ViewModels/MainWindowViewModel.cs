@@ -18,56 +18,57 @@ namespace SQLWerk.ViewModels
 {
     public partial class MainWindowViewModel : ObservableObject
     {
-        private readonly IExcelReader _reader;
-        private readonly IExhibitRepository _exhibitRepo;
-        private readonly IVuzRepository _vuzRepo;
-        private readonly IGrntiRepository _grntiRepo;
+        private readonly ImportService<ExhibitTableRow> _exhibitImport;
+        private readonly ImportService<VuzTableRow> _vuzImport;
+        private readonly ImportService<GrntiTableRow> _grntiImport;
 
         [ObservableProperty]
         private ObservableCollection<ExhibitTableRow> _exhibits = new();
+
         [ObservableProperty]
         private ObservableCollection<VuzTableRow> _vuzes = new();
+
         [ObservableProperty]
         private ObservableCollection<GrntiTableRow> _grnti = new();
 
         [ObservableProperty]
         private string _status = "Loading...";
+
         [ObservableProperty]
         private int _rowCount;
 
         [ObservableProperty]
         private bool _showExhibits = true;
+
         [ObservableProperty]
         private bool _showVuz;
+
         [ObservableProperty]
         private bool _showGrnti;
 
-        public MainWindowViewModel(IExcelReader reader,
-            IExhibitRepository exhibitRepo, IVuzRepository vuzRepo,
-            IGrntiRepository grntiRepo)
+        public MainWindowViewModel(ImportService<ExhibitTableRow> exhibitImport,
+            ImportService<VuzTableRow> vuzImport,
+            ImportService<GrntiTableRow> grntiImport)
         {
-            _reader = reader;
-            _exhibitRepo = exhibitRepo;
-            _vuzRepo = vuzRepo;
-            _grntiRepo = grntiRepo;
+            _exhibitImport = exhibitImport;
+            _vuzImport = vuzImport;
+            _grntiImport = grntiImport;
         }
 
         public void Initialize(string xlsPath)
         {
-            _exhibitRepo.EnsureCreated();
-            _vuzRepo.EnsureCreated();
-            _grntiRepo.EnsureCreated();
-
-            if (_exhibitRepo.Count() == 0 && File.Exists(xlsPath))
+            if (File.Exists(xlsPath))
             {
-                var read = _reader.Parse(xlsPath);
-                _exhibitRepo.SaveAll(read);
-                Status = $"Imported {read.Count} rows from {Path.GetFileName(xlsPath)}";
+                var (imported, _) = _exhibitImport.ImportIfEmpty(xlsPath);
+                if (imported > 0)
+                {
+                    Status = $"Imported {imported} rows from {Path.GetFileName(xlsPath)}";
+                }
             }
 
-            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitRepo.GetAll());
-            Vuzes = new ObservableCollection<VuzTableRow>(_vuzRepo.GetAll());
-            Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
+            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
+            Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
+            Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
 
             SelectExhibitsCommand.Execute(null);
         }
@@ -90,7 +91,7 @@ namespace SQLWerk.ViewModels
             ShowVuz = true;
             ShowGrnti = false;
 
-            RowCount = Exhibits.Count;
+            RowCount = Vuzes.Count;
             Status = $"Vuz: {RowCount} rows";
         }
 
@@ -101,7 +102,7 @@ namespace SQLWerk.ViewModels
             ShowVuz = false;
             ShowGrnti = true;
 
-            RowCount = Exhibits.Count;
+            RowCount = Grnti.Count;
             Status = $"Grnti: {RowCount} rows";
         }
     }

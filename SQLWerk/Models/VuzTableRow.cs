@@ -1,4 +1,5 @@
 ﻿using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
 using SQLWerk.Services;
 using System;
 using System.Collections.Generic;
@@ -7,7 +8,7 @@ using System.Text;
 
 namespace SQLWerk.Models
 {
-    public class VuzTableRow
+    public class VuzTableRow : ITableRow
     {
         public long Id { get; set; }
         public string? Codvuz { get; set; }

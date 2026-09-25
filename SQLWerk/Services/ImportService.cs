@@ -7,11 +7,11 @@ using System.Text;
 
 namespace SQLWerk.Services
 {
-    internal class ExhibitImportService<T> where T : ITableRow, new()
+    public class ImportService<T> where T : ITableRow, new()
     {
         private readonly IExcelReader _reader;
         private readonly IRepository<T> _repo;
-        public ExhibitImportService(IExcelReader reader, IRepository<T> repo)
+        public ImportService(IExcelReader reader, IRepository<T> repo)
         {
             _reader = reader;
             _repo = repo;
