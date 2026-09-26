@@ -18,10 +18,16 @@ namespace SQLWerk.ViewModels
 {
     public partial class MainWindowViewModel : ObservableObject
     {
+        private string? _exhibitsPath;
+        private string? _vuzPath;
+        private string? _grntiPath;
+
+
         private readonly ImportService<ExhibitTableRow> _exhibitImport;
         private readonly ImportService<VuzTableRow> _vuzImport;
         private readonly ImportService<GrntiTableRow> _grntiImport;
         private readonly IFullDataRepository _fullDataRepo;
+        private readonly IDataBaseMaintenanceService _maintenance;
 
         [ObservableProperty]
         private ObservableCollection<ExhibitTableRow> _exhibits = new();
@@ -53,22 +59,40 @@ namespace SQLWerk.ViewModels
         [ObservableProperty]
         private bool _showAll;
 
-        public MainWindowViewModel(ImportService<ExhibitTableRow> exhibitImport,
+        [ObservableProperty]
+        private bool _isBusy;
+
+        public MainWindowViewModel(
+            ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
             ImportService<GrntiTableRow> grntiImport,
-            IFullDataRepository fullDataRepo)
+            IFullDataRepository fullDataRepo,
+            IDataBaseMaintenanceService maintenance)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
             _grntiImport = grntiImport;
             _fullDataRepo = fullDataRepo;
+            _maintenance = maintenance;                
         }
 
         public void Initialize(string exhibitsPath, string vuzPath, string grntiPath)
         {
-            _exhibitImport.ImportIfEmpty(exhibitsPath);
-            _vuzImport.ImportIfEmpty(vuzPath);
-            _grntiImport.ImportIfEmpty(grntiPath);
+            _exhibitsPath = exhibitsPath;
+            _vuzPath = vuzPath;
+            _grntiPath = grntiPath;
+
+            LoadAll();
+        }
+
+        private void LoadAll()
+        {
+            if (_exhibitsPath is null || _vuzPath is null || _grntiPath is null)
+                return;
+
+            _exhibitImport.ImportIfEmpty(_exhibitsPath);
+            _vuzImport.ImportIfEmpty(_vuzPath);
+            _grntiImport.ImportIfEmpty(_grntiPath);
 
             _fullDataRepo.EnsureCreated();
             FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
@@ -126,6 +150,48 @@ namespace SQLWerk.ViewModels
 
             RowCount = FullTable.Count;
             Status = $"Full data: {RowCount} rows";
+        }
+
+        [RelayCommand]
+        private void Reload()
+        {
+            if (_exhibitsPath is null || _vuzPath is null || _grntiPath is null)
+            {
+                Status = "Paths are not initialized";
+                return;
+            }
+
+            try
+            {
+                IsBusy = true;
+                Status = "Reloading DB... ";
+
+                _maintenance.ReloadDataBase();
+
+                _exhibitImport.ImportIfEmpty(_exhibitsPath);
+                _vuzImport.ImportIfEmpty(_vuzPath);
+                _grntiImport.ImportIfEmpty(_grntiPath);
+
+                _fullDataRepo.EnsureCreated();
+                FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
+
+                Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
+                Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
+                Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
+
+                if (ShowAll) SelectFullCommand.Execute(null);
+                else if (ShowVuz) SelectVuzCommand.Execute(null);
+                else if (ShowGrnti) SelectGrntiCommand.Execute(null);
+                else SelectExhibitsCommand.Execute(null);
+            }
+            catch (Exception ex)
+            {
+                Status = $"Err loading: {ex.Message}";
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
     }
 

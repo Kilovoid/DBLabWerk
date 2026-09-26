@@ -21,6 +21,10 @@
         <TextBlock Text="{Binding Status}"
                VerticalAlignment="Center"
                Margin="16,0,0,0" />
+        <Button Content = "Reload"
+                Command="{Binding ReloadCommand}"
+                IsEnabled="{Binding !IsBusy}"
+                Margin ="8"/> 
         </StackPanel>
 
         <Grid>
