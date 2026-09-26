@@ -16,7 +16,8 @@
             Command="{Binding SelectVuzCommand}" />
         <Button Content="Grnti"
             Command="{Binding SelectGrntiCommand}" />
-
+        <Button Content="Full Info"
+            Command="{Binding SelectFullCommand}" />
         <TextBlock Text="{Binding Status}"
                VerticalAlignment="Center"
                Margin="16,0,0,0" />
@@ -31,6 +32,9 @@
                       AutoGenerateColumns="True" />
             <DataGrid ItemsSource="{Binding Grnti}"
                       IsVisible="{Binding ShowGrnti}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding FullTable}"
+                      IsVisible="{Binding ShowAll}"
                       AutoGenerateColumns="True" />
         </Grid>
 

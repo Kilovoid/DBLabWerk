@@ -61,12 +61,13 @@ public partial class App : Application
         services.AddScoped<IExhibitRepository, ExhibitRepository>();
         services.AddScoped<IVuzRepository, VuzRepository>();
         services.AddScoped<IGrntiRepository, GrntiRepository>();
+        services.AddScoped<IFullDataRepository, FullDataRepository>();
 
         services.AddScoped<IRepository<ExhibitTableRow>>(sp => sp.GetRequiredService<IExhibitRepository>());
         services.AddScoped<IRepository<VuzTableRow>>(sp => sp.GetRequiredService<IVuzRepository>());
         services.AddScoped<IRepository<GrntiTableRow>>(sp => sp.GetRequiredService<IGrntiRepository>());
 
-        services.AddScoped < ImportService<ExhibitTableRow>>();
+        services.AddScoped <ImportService<ExhibitTableRow>>();
         services.AddScoped<ImportService<VuzTableRow>>();
         services.AddScoped<ImportService<GrntiTableRow>>();
 

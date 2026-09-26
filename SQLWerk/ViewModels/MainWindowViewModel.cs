@@ -21,6 +21,7 @@ namespace SQLWerk.ViewModels
         private readonly ImportService<ExhibitTableRow> _exhibitImport;
         private readonly ImportService<VuzTableRow> _vuzImport;
         private readonly ImportService<GrntiTableRow> _grntiImport;
+        private readonly IFullDataRepository _fullDataRepo;
 
         [ObservableProperty]
         private ObservableCollection<ExhibitTableRow> _exhibits = new();
@@ -30,6 +31,9 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty]
         private ObservableCollection<GrntiTableRow> _grnti = new();
+
+        [ObservableProperty]
+        private ObservableCollection<FullModel> _fullTable = new();
 
         [ObservableProperty]
         private string _status = "Loading...";
@@ -46,13 +50,18 @@ namespace SQLWerk.ViewModels
         [ObservableProperty]
         private bool _showGrnti;
 
+        [ObservableProperty]
+        private bool _showAll;
+
         public MainWindowViewModel(ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
-            ImportService<GrntiTableRow> grntiImport)
+            ImportService<GrntiTableRow> grntiImport,
+            IFullDataRepository fullDataRepo)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
             _grntiImport = grntiImport;
+            _fullDataRepo = fullDataRepo;
         }
 
         public void Initialize(string exhibitsPath, string vuzPath, string grntiPath)
@@ -60,6 +69,9 @@ namespace SQLWerk.ViewModels
             _exhibitImport.ImportIfEmpty(exhibitsPath);
             _vuzImport.ImportIfEmpty(vuzPath);
             _grntiImport.ImportIfEmpty(grntiPath);
+
+            _fullDataRepo.EnsureCreated();
+            FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
 
             Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
             Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
@@ -74,6 +86,7 @@ namespace SQLWerk.ViewModels
             ShowExhibits = true;
             ShowVuz = false;
             ShowGrnti = false;
+            ShowAll = false;
 
             RowCount = Exhibits.Count;
             Status = $"Exhibits: {RowCount} rows";
@@ -85,6 +98,7 @@ namespace SQLWerk.ViewModels
             ShowExhibits = false;
             ShowVuz = true;
             ShowGrnti = false;
+            ShowAll = false;
 
             RowCount = Vuzes.Count;
             Status = $"Vuz: {RowCount} rows";
@@ -95,10 +109,23 @@ namespace SQLWerk.ViewModels
         {
             ShowExhibits = false;
             ShowVuz = false;
+            ShowAll = false;
             ShowGrnti = true;
 
             RowCount = Grnti.Count;
             Status = $"Grnti: {RowCount} rows";
+        }
+
+        [RelayCommand]
+        public void SelectFull()
+        {
+            ShowAll = true;
+            ShowExhibits = false;
+            ShowGrnti = false;
+            ShowVuz = false;
+
+            RowCount = FullTable.Count;
+            Status = $"Full data: {RowCount} rows";
         }
     }
 
