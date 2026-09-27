@@ -10,13 +10,13 @@ namespace SQLWerk.Services
         public static string ParseGrnti(string? codeString)
         {
             string pattern1 = @"\b(\d{2}),(\d{2}),(\d{2})\b";
-            string pattern2 = @"\b(\d{2}),(\d{2})\b";
+            //string pattern2 = @"\b(\d{2}),(\d{2})\b";
 
             if (codeString != null)
             {
                 codeString = codeString.Trim();
                 codeString = Regex.Replace(codeString, pattern1, "$1.$2.$3");
-                codeString = Regex.Replace(codeString, pattern2, "$1.$2");
+                //codeString = Regex.Replace(codeString, pattern2, "$1.$2");
                 string[] codes = codeString.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
 
                 for (int i = 0; i < codes.Length; i++)
