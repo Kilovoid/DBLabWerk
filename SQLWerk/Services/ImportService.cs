@@ -29,6 +29,20 @@ namespace SQLWerk.Services
             _repo.SaveAll(read);
             return (read.Count, read.Count);
         }
+
+        public (int imported, int total) ForceImport(string? xlsPath)
+        {
+            _repo.EnsureCreated();
+            _repo.Clear();
+            if (_repo.Count() > 0) return (0, _repo.Count());
+            if (xlsPath is null || !File.Exists(xlsPath)) return (0, 0);
+
+            var read = _reader.Parse<T>(xlsPath);
+            _repo.SaveAll(read);
+            return (read.Count, read.Count);
+        }
         public List<T> LoadAll() => _repo.GetAll();
+
+        public int Count() => _repo.Count();
     }
 }

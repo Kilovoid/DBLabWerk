@@ -104,5 +104,14 @@ namespace SQLWerk.Data.Sqlite
             }
             tx.Commit();
         }
+
+        public void Clear()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Exhibits;";
+            cmd.ExecuteNonQuery();
+        }
     }
 }

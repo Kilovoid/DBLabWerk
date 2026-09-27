@@ -26,8 +26,12 @@ namespace SQLWerk.ViewModels
         private readonly ImportService<ExhibitTableRow> _exhibitImport;
         private readonly ImportService<VuzTableRow> _vuzImport;
         private readonly ImportService<GrntiTableRow> _grntiImport;
+        private readonly IExhibitRepository _exhibitRepo;
+        private readonly IVuzRepository _vuzRepo;
+        private readonly IGrntiRepository _grntiRepo;
         private readonly IFullDataRepository _fullDataRepo;
-        private readonly IDataBaseMaintenanceService _maintenance;
+        private readonly IFilePicker _picker;
+        private readonly IExcelReader _reader;
 
         [ObservableProperty]
         private ObservableCollection<ExhibitTableRow> _exhibits = new();
@@ -66,23 +70,52 @@ namespace SQLWerk.ViewModels
             ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
             ImportService<GrntiTableRow> grntiImport,
+            IExhibitRepository exhibitRepo,
+            IVuzRepository vuzRepo,
+            IGrntiRepository grntiRepo,
             IFullDataRepository fullDataRepo,
-            IDataBaseMaintenanceService maintenance)
+            IFilePicker picker,
+            IExcelReader reader)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
             _grntiImport = grntiImport;
             _fullDataRepo = fullDataRepo;
-            _maintenance = maintenance;                
+            _picker = picker;
+            _reader = reader;
+            _exhibitRepo = exhibitRepo;
+            _vuzRepo = vuzRepo;
+            _grntiRepo = grntiRepo;
         }
 
-        public void Initialize(string exhibitsPath, string vuzPath, string grntiPath)
+        public void Initialize()
         {
-            _exhibitsPath = exhibitsPath;
-            _vuzPath = vuzPath;
-            _grntiPath = grntiPath;
+            _exhibitRepo.EnsureCreated();
+            _vuzRepo.EnsureCreated();
+            _grntiRepo.EnsureCreated();
+            _fullDataRepo.EnsureCreated();
 
-            LoadAll();
+            var haveData =
+                _exhibitImport.Count() > 0 || _vuzImport.Count() > 0 || _grntiImport.Count() > 0;
+            if (haveData)
+            {
+                ReloadFromDatabase();
+                Status = "Data loaded from DataBase";
+            }
+            else
+            {
+                Status = "Press Load to choose xls files";
+            } 
+        }
+
+        private void ReloadFromDatabase()
+        {
+            FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
+            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
+            Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
+            Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
+
+            SelectExhibitsCommand.Execute(null);
         }
 
         private void LoadAll()
@@ -153,44 +186,94 @@ namespace SQLWerk.ViewModels
         }
 
         [RelayCommand]
-        private void Reload()
+        
+        private async Task LoadAsync()
         {
-            if (_exhibitsPath is null || _vuzPath is null || _grntiPath is null)
+            var files = await _picker.PickFilesAsync("Choose files containing Vyst_mo, VUZ and grntirub data", 3);
+            if (files is null)
             {
-                Status = "Paths are not initialized";
+                Status = "Load cancelled";
+                return;
+            }
+
+            string? exhibitsPath = null;
+            string? vuzPath = null;
+            string? grntiPath = null;
+
+            var errs = new List<string>();
+            foreach (var file in files)
+            {
+                string err;
+                if (exhibitsPath is null && HeaderValidator.IsMatch(file,
+                    ExhibitTableRow.ExpectedHeader,
+                    _reader,
+                    out err))
+                {
+                    exhibitsPath = file;
+                    continue;
+                }
+
+                if (vuzPath is null && HeaderValidator.IsMatch(file,
+                    VuzTableRow.ExpectedHeader,
+                    _reader,
+                    out err))
+                {
+                    vuzPath = file;
+                    continue;
+                }
+
+                if (grntiPath is null && HeaderValidator.IsMatch(file,
+                    GrntiTableRow.ExpectedHeader,
+                    _reader,
+                    out err))
+                {
+                    grntiPath = file;
+                    continue;
+                }
+
+                errs.Add($"File {Path.GetFileName(file)} doesn't match");
+            }
+
+            if (exhibitsPath is null)
+            {
+                errs.Add("File with Vyst_mo data was not found!");
+            }
+            if (vuzPath is null)
+            {
+                errs.Add("File with VUZ data was not found!");
+            }
+            if (grntiPath is null)
+            {
+                errs.Add("File with grntirub data was not found!");
+            }
+
+            bool hasNull = (exhibitsPath is null || vuzPath is null || grntiPath is null);
+
+            if (errs.Count > 0)
+            {
+                Status = "Errors while loading: \n" + string.Join("\n", errs);
+            }
+
+            if (errs.Count > 0 && hasNull)
+            {
+                Status = "Critical errors while loading: \n" + string.Join("\n", errs);
                 return;
             }
 
             try
             {
-                IsBusy = true;
-                Status = "Reloading DB... ";
+                _exhibitImport.ForceImport(exhibitsPath!);
+                _vuzImport.ForceImport(vuzPath!);
+                _grntiImport.ForceImport(grntiPath!);
 
-                _maintenance.ReloadDataBase();
+                ReloadFromDatabase();
 
-                _exhibitImport.ImportIfEmpty(_exhibitsPath);
-                _vuzImport.ImportIfEmpty(_vuzPath);
-                _grntiImport.ImportIfEmpty(_grntiPath);
-
-                _fullDataRepo.EnsureCreated();
-                FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
-
-                Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
-                Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
-                Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
-
-                if (ShowAll) SelectFullCommand.Execute(null);
-                else if (ShowVuz) SelectVuzCommand.Execute(null);
-                else if (ShowGrnti) SelectGrntiCommand.Execute(null);
-                else SelectExhibitsCommand.Execute(null);
+                SelectExhibitsCommand.Execute(null);
+                Status = $"Загружено: Exhibits={Exhibits.Count}, Vuz={Vuzes.Count}, Grnti={Grnti.Count}";
             }
             catch (Exception ex)
             {
-                Status = $"Err loading: {ex.Message}";
-            }
-            finally
-            {
-                IsBusy = false;
+                Status = "Ошибка импорта: " + ex.Message;
             }
         }
     }

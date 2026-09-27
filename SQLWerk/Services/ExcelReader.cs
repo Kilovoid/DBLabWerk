@@ -40,5 +40,20 @@ namespace SQLWerk.Services
             var v = reader.GetValue(idx);
             return v?.ToString();
         }
+
+        public string[] GetHeaders(string filePath)
+        {
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+
+            if (!reader.Read()) return Array.Empty<string>();
+
+            var headers = new string[reader.FieldCount];
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                headers[i] = reader.GetValue(i)?.ToString()?.Trim() ?? "";
+            }
+            return headers;
+        }
     }
 }

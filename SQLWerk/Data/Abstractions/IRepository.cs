@@ -11,6 +11,7 @@ namespace SQLWerk.Data.Abstractions
         List<T> GetAll();
         int Count();
         void SaveAll(IEnumerable<T> rows);
+        void Clear();
     }
 
 
