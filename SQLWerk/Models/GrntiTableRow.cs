@@ -10,6 +10,10 @@ namespace SQLWerk.Models
 {
     public class GrntiTableRow : ITableRow
     {
+        public static readonly string[] ExpectedHeader =
+        {
+            "codrub", "rubrika"
+        };
         public long Id { get; set; }
         public string? Codrub { get; set; }
         public string? Rubrika { get; set; }

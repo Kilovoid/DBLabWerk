@@ -9,6 +9,13 @@ namespace SQLWerk.Models
 {
     public class ExhibitTableRow : ITableRow
     {
+        public static readonly string[] ExpectedHeader =
+        {
+            "codvuz", "z2", "type", "regnumber", "subject",
+            "grnti", "bossname", "bosstitle", "exhitype", "vystavki",
+            "exponat"
+        };
+
         public long Id { get; set; }
         public string? Codvuz { get; set; }
         public string? Z2 { get; set; }

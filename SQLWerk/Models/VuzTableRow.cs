@@ -10,6 +10,12 @@ namespace SQLWerk.Models
 {
     public class VuzTableRow : ITableRow
     {
+        public static readonly string[] ExpectedHeader =
+        {
+            "codvuz", "z1", "z1full", "z2", "region",
+            "city", "status", "obl", "oblname", "gr_ved",
+            "prof"
+        };
         public long Id { get; set; }
         public string? Codvuz { get; set; }
         public string? Z1 { get; set; }

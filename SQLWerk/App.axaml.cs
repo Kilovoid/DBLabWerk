@@ -29,16 +29,18 @@ public partial class App : Application
             ConfigureServices(services);
             Services = services.BuildServiceProvider();
 
+            var window = new MainWindow();
+            var picker = new FilePicker(window);
+
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 var baseDir = AppContext.BaseDirectory;
-                var exhibitsPath = Path.Combine(baseDir, "Vyst_mo.xls");
-                var vuzPath = Path.Combine(baseDir, "VUZ.xls");
-                var grntiPath = Path.Combine(baseDir, "grntirub.xls");
 
-                var vm = Services.GetRequiredService<MainWindowViewModel>();
-                vm.Initialize(exhibitsPath, vuzPath, grntiPath);
-                desktop.MainWindow = new MainWindow { DataContext = vm };
+                var vm = ActivatorUtilities.CreateInstance<MainWindowViewModel>(
+                    Services, picker);
+                vm.Initialize();
+                window.DataContext = vm;
+                desktop.MainWindow = window;
             }
         }
         catch (Exception ex)
