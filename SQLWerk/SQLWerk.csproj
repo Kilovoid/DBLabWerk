@@ -41,4 +41,8 @@
   <ItemGroup>
     <None Include="E:\SQLWerk\SQLWerk\.editorconfig" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Styles\" />
+  </ItemGroup>
 </Project>
