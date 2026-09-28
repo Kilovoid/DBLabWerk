@@ -46,6 +46,10 @@ SQLWerk/
   Data/
     Abstractions/
       IConnectionFactory.cs
+      IDataBaseMaintenanceService.cs
+      IExcelReader.cs
+      IFilePicker.cs
+      IFullDataRepository.cs
       IRepository.cs
       ITableRow.cs
     Extensions/
@@ -53,18 +57,24 @@ SQLWerk/
       SqliteDataReaderExtensions.cs
     Sqlite/
       ExhibitRepository.cs
+      FullDataRepository.cs
       GrntiRepository.cs
       SqliteConnectionFactory.cs
       VuzRepository.cs
   Models/
     ExhibitTableRow.cs
+    FullModel.cs
     GrntiTableRow.cs
     VuzTableRow.cs
   Services/
+    DataBaseMaintenanceService.cs
     ExcelReader.cs
+    FilePicker.cs
     GrntiService.cs
-    IExcelReader.cs
+    HeaderValidator.cs
     ImportService.cs
+  Styles/
+    DataGridStyles.axaml
   ViewModels/
     MainViewModel.cs
     MainWindowViewModel.cs
@@ -91,6 +101,69 @@ SQLWerk.slnx
 <files>
 This section contains the contents of the repository's files.
 
+<file path="SQLWerk/Styles/DataGridStyles.axaml">
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="#F5F5F5"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="GridLinesVisibility" Value="All"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="#D0D0D0"/>
+        <Setter Property="VerticalGridLinesBrush" Value="#D0D0D0"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="#E0E0E0"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="Padding" Value="8,4"/>
+    </Style>
+
+    <Style Selector="DataGridRow">
+        <Setter Property="Background" Value="#FAFAFA"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+
+    <Style Selector="DataGridRow:nth-child(even)">
+        <Setter Property="Background" Value="#F0F0F0"/>
+    </Style>
+
+    <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="#E3F2FD"/>
+    </Style>
+
+    <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="#ADD8E6"/>
+        <Setter Property="Stroke" Value="#87CEEB"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+    </Style>
+
+    <Style Selector="DataGridRow:selected">
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+
+    <Style Selector="DataGridCell">
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        <Setter Property="BorderThickness" Value="0,0,1,0"/>
+        <Setter Property="Padding" Value="6,4"/>
+    </Style>
+
+    <Style Selector="DataGridCell:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+
+</Styles>
+</file>
+
 <file path="SQLWerk/Data/Abstractions/IConnectionFactory.cs">
 using Microsoft.Data.Sqlite;
 using System;
@@ -106,7 +179,23 @@ namespace SQLWerk.Data.Abstractions
 }
 </file>
 
-<file path="SQLWerk/Data/Abstractions/IRepository.cs">
+<file path="SQLWerk/Data/Abstractions/IDataBaseMaintenanceService.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IDataBaseMaintenanceService
+    {
+        void ReloadDataBase();
+        void RecreateSchema();
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IExcelReader.cs">
+using Microsoft.Data.Sqlite;
 using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
@@ -114,22 +203,42 @@ using System.Text;
 
 namespace SQLWerk.Data.Abstractions
 {
-    public interface IRepository<T>
+    public interface IExcelReader
+    {
+        List<T> Parse<T>(string filePath) where T : ITableRow, new();
+        string[] GetHeaders(string filePath);
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IFilePicker.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IFilePicker
+    {
+        Task<string[]?> PickFilesAsync(string title, int minCount);
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IFullDataRepository.cs">
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IFullDataRepository
     {
         void EnsureCreated();
-        List<T> GetAll();
-        int Count();
-        void SaveAll(IEnumerable<T> rows);
+        List<FullModel> GetAll();
     }
-
-
-    public interface IExhibitRepository : IRepository<ExhibitTableRow>{}
-
-
-    public interface IVuzRepository : IRepository<VuzTableRow>{}
-
-
-    public interface IGrntiRepository : IRepository<GrntiTableRow>{}
 }
 </file>
 
@@ -167,98 +276,6 @@ namespace SQLWerk.Data.Extensions
 }
 </file>
 
-<file path="SQLWerk/Data/Sqlite/GrntiRepository.cs">
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Models;
-using SQLWerk.Data.Extensions;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Sqlite
-{
-    internal class GrntiRepository : IGrntiRepository
-    {
-        private const string InsertSql = """
-            INSERT INTO Grnti
-                (Codrub,Rubrika)
-            VALUES
-                ($c,$r);
-            """;
-        private readonly IConnectionFactory _factory;
-
-        public GrntiRepository(IConnectionFactory factory) => _factory = factory;
-        public void EnsureCreated()
-        {
-            using var conn = _factory.Create();
-            conn.Open();
-
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                CREATE TABLE IF NOT EXISTS Grnti (
-                    Id INTEGER PRIMARY KEY,
-                    Codrub TEXT, Rubrika TEXT
-                );
-                """;
-            cmd.ExecuteNonQuery();
-        }
-
-        public List<GrntiTableRow> GetAll()
-        {
-            var list = new List<GrntiTableRow>();
-            using var conn = _factory.Create();
-            conn.Open();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT Id,Codrub,Rubrika
-                FROM Grnti;
-                """;
-
-            using var r = cmd.ExecuteReader();
-            while (r.Read())
-            {
-                list.Add(new GrntiTableRow
-                {
-                    Id = r.GetLong(0),
-                    Codrub = r.GetStringOrNull(1),
-                    Rubrika = r.GetStringOrNull(2),
-                });
-            }
-            return list;
-        }
-
-        public int Count()
-        {
-            using var conn = _factory.Create();
-            conn.Open();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM Grnti;";
-            return Convert.ToInt32(cmd.ExecuteScalar());
-        }
-
-        public void SaveAll(IEnumerable<GrntiTableRow> rows)
-        {
-            using var conn = _factory.Create();
-            conn.Open();
-            using var tx = conn.BeginTransaction();
-
-            using var cmd = conn.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = InsertSql;
-
-            foreach (var row in rows)
-            {
-                cmd.Parameters.Clear();
-                cmd.AddParam("$c", row.Codrub);
-                cmd.AddParam("$r", row.Rubrika);
-                cmd.ExecuteNonQuery();
-            }
-            tx.Commit();
-        }
-    }
-}
-</file>
-
 <file path="SQLWerk/Data/Sqlite/SqliteConnectionFactory.cs">
 using Microsoft.Data.Sqlite;
 using SQLWerk.Data.Abstractions;
@@ -281,112 +298,204 @@ namespace SQLWerk.Data.Sqlite
 }
 </file>
 
-<file path="SQLWerk/Data/Sqlite/VuzRepository.cs">
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Data.Extensions;
-using SQLWerk.Models;
+<file path="SQLWerk/Models/FullModel.cs">
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace SQLWerk.Data.Sqlite
+namespace SQLWerk.Models
 {
-    internal class VuzRepository : IVuzRepository
+    public class FullModel
     {
-        private const string InsertSql = """
-            INSERT INTO Vuz
-                (Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof)
-            VALUES
-                ($co,$z1,$z1f,$z2,$r,$ci,$st,$ob,$on,$gv,$p);
-            """;
+        public string Source { get; set; } = "";
+        public long Id { get; set; }
+
+        public string? Codvuz { get; set; }
+        public string? Z2 { get; set; }
+        public string? Type { get; set; }
+        public string? Regnumber { get; set; }
+        public string? Subject { get; set; }
+        public string? Grnti { get; set; }
+        public string? Bossname { get; set; }
+        public string? Bosstitle { get; set; }
+        public string? Exhitype { get; set; }
+        public string? Vystavki { get; set; }
+        public string? Exponat { get; set; }
+
+        public string? Z1 { get; set; }
+        public string? Z1Full { get; set; }
+        public string? Region { get; set; }
+        public string? City { get; set; }
+        public string? Status { get; set; }
+        public string? Obl { get; set; }
+        public string? OblName { get; set; }
+        public string? GrVed { get; set; }
+        public string? Prof { get; set; }
+
+        public string? Codrub { get; set; }
+        public string? Rubrika { get; set; }
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/DataBaseMaintenanceService.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    internal class DataBaseMaintenanceService : IDataBaseMaintenanceService
+    {
         private readonly IConnectionFactory _factory;
+        private readonly IFullDataRepository _fullDataRepo;
+        private readonly string _dbPath;
 
-        public VuzRepository(IConnectionFactory factory) => _factory = factory;
-        public void EnsureCreated()
+        public DataBaseMaintenanceService(IConnectionFactory factory,
+            IFullDataRepository fullDataRepo,
+            string dbPath)
+        {
+            _factory = factory;
+            _fullDataRepo = fullDataRepo;
+            _dbPath = dbPath;
+        }
+
+        public void ReloadDataBase()
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(_dbPath))
+            {
+                File.Delete(_dbPath);
+            }
+            RecreateSchema();
+        }
+
+        public void RecreateSchema()
         {
             using var conn = _factory.Create();
             conn.Open();
 
             using var cmd = conn.CreateCommand();
+
             cmd.CommandText = """
-                CREATE TABLE IF NOT EXISTS Vuz (
-                    Id INTEGER PRIMARY KEY,
-                    Codvuz TEXT, Z1 TEXT, Z1Full TEXT, Z2 TEXT, Region TEXT,
-                    City TEXT, Status TEXT, Obl TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
+                DROP VIEW  IF EXISTS AllDataView;
+                DROP TABLE IF EXISTS Exhibits;
+                DROP TABLE IF EXISTS Vuz;
+                DROP TABLE IF EXISTS Grnti;
+
+                CREATE TABLE Exhibits (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codvuz    TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT,
+                    Subject   TEXT, Grnti TEXT, Bossname TEXT, Bosstitle TEXT,
+                    Exhitype  TEXT, Vystavki TEXT, Exponat TEXT
                 );
-                """;
+
+                CREATE TABLE Vuz (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codvuz    TEXT, Z2 TEXT, Z1 TEXT, Z1Full TEXT,
+                    Region    TEXT, City TEXT, Status TEXT,
+                    Obl       TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
+                );
+
+                CREATE TABLE Grnti (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codrub    TEXT, Rubrika TEXT
+                );
+            """;
             cmd.ExecuteNonQuery();
+
+            _fullDataRepo.EnsureCreated();
         }
+    }
+}
+</file>
 
-        public List<VuzTableRow> GetAll()
+<file path="SQLWerk/Services/FilePicker.cs">
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
+using SQLWerk.Data.Abstractions;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SQLWerk.Services
+{
+    public class FilePicker : IFilePicker
+    {
+        private readonly Window _owner;
+
+        public FilePicker(Window owner)
         {
-            var list = new List<VuzTableRow>();
-            using var conn = _factory.Create();
-            conn.Open();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT Id,Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof
-                FROM Vuz;
-                """;
-
-            using var r = cmd.ExecuteReader();
-            while (r.Read())
+            _owner = owner;
+        }
+        public async Task<string[]?> PickFilesAsync(string title, int minCount)
+        {
+            var files = await _owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                list.Add(new VuzTableRow
+                Title = title,
+                AllowMultiple = true,
+                FileTypeFilter = new[]
                 {
-                    Id = r.GetLong(0),
-                    Codvuz = r.GetStringOrNull(1),
-                    Z1 = r.GetStringOrNull(2),
-                    Z1Full = r.GetStringOrNull(3),
-                    Z2 = r.GetStringOrNull(4),
-                    Region = r.GetStringOrNull(5),
-                    City = r.GetStringOrNull(6),
-                    Status = r.GetStringOrNull(7),
-                    Obl = r.GetStringOrNull(8),
-                    OblName = r.GetStringOrNull(9),
-                    GrVed = r.GetStringOrNull(10),
-                    Prof = r.GetStringOrNull(11),
-                });
-            }
-            return list;
+                    new FilePickerFileType("Excel")
+                    {
+                        Patterns = new[] { "*.xls", "*.xlsx" }
+                    }
+                }
+            });
+            if (files.Count < minCount) return null;
+            return files.Select(f => f.Path.LocalPath).ToArray();
         }
+    }
+}
+</file>
 
-        public int Count()
+<file path="SQLWerk/Services/HeaderValidator.cs">
+using SQLWerk.Data.Abstractions;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    public class HeaderValidator
+    {
+        public static bool IsMatch(string filePath, string[] expected, IExcelReader reader, out string error)
         {
-            using var conn = _factory.Create();
-            conn.Open();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM Vuz;";
-            return Convert.ToInt32(cmd.ExecuteScalar());
-        }
-
-        public void SaveAll(IEnumerable<VuzTableRow> rows)
-        {
-            using var conn = _factory.Create();
-            conn.Open();
-            using var tx = conn.BeginTransaction();
-
-            using var cmd = conn.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = InsertSql;
-
-            foreach (var row in rows)
+            error = "";
+            string[] actual;
+            try
             {
-                cmd.Parameters.Clear();
-                cmd.AddParam("$co", row.Codvuz);
-                cmd.AddParam("$z1", row.Z1);
-                cmd.AddParam("$z1f", row.Z1Full);
-                cmd.AddParam("$z2", row.Z2);
-                cmd.AddParam("$r", row.Region);
-                cmd.AddParam("$ci", row.City);
-                cmd.AddParam("$st", row.Status);
-                cmd.AddParam("$ob", row.Obl);
-                cmd.AddParam("$on", row.OblName);
-                cmd.AddParam("$gv", row.GrVed);
-                cmd.AddParam("$p", row.Prof);
-                cmd.ExecuteNonQuery();
+                actual = reader.GetHeaders(filePath);
             }
-            tx.Commit();
+            catch (Exception ex)
+            {
+                error = $"Can't open file {filePath} : {ex.Message}";
+                return false;
+            }
+
+            if (actual.Length != expected.Length)
+            {
+                error = $"Files do not compare";
+                return false;
+            }
+
+            for (int i = 0; i < expected.Length; i++)
+            {
+                if (!string.Equals(actual[i], expected[i]))
+                {
+                    error = $"{Path.GetFileName(filePath)}: wrong column {i + 1}";
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }
@@ -1622,6 +1731,34 @@ public class ViewLocator : IDataTemplate
 ExcelDataReader - знаю только это чудо.
 </file>
 
+<file path="SQLWerk/Data/Abstractions/IRepository.cs">
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IRepository<T>
+    {
+        void EnsureCreated();
+        List<T> GetAll();
+        int Count();
+        void SaveAll(IEnumerable<T> rows);
+        void Clear();
+    }
+
+
+    public interface IExhibitRepository : IRepository<ExhibitTableRow>{}
+
+
+    public interface IVuzRepository : IRepository<VuzTableRow>{}
+
+
+    public interface IGrntiRepository : IRepository<GrntiTableRow>{}
+}
+</file>
+
 <file path="SQLWerk/Data/Extensions/SqliteDataReaderExtensions.cs">
 using Microsoft.Data.Sqlite;
 using System;
@@ -1640,27 +1777,171 @@ namespace SQLWerk.Data.Extensions
 }
 </file>
 
-<file path="SQLWerk/Data/Sqlite/ExhibitRepository.cs">
+<file path="SQLWerk/Data/Sqlite/FullDataRepository.cs">
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Data.Extensions;
 using SQLWerk.Models;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SQLWerk.Data.Sqlite
+{
+    internal class FullDataRepository : IFullDataRepository
+    {
+        private readonly IConnectionFactory _factory;
+
+        public FullDataRepository(IConnectionFactory factory) => _factory = factory;
+
+        public void EnsureCreated()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using (var drop = conn.CreateCommand())
+            {
+                drop.CommandText = "DROP VIEW IF EXISTS AllDataView;";
+                drop.ExecuteNonQuery();
+            }
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            CREATE VIEW AllDataView AS
+            SELECT
+            e.Id           AS ExhibitId,
+            e.Codvuz, e.Z2, e.Type, e.Regnumber, e.Subject, e.Grnti,
+            e.Bossname, e.Bosstitle, e.Exhitype, e.Vystavki, e.Exponat,
+
+            v.Id           AS VuzId,
+            v.Z1, v.Z1Full, v.Region, v.City, v.Status,
+            v.Obl, v.OblName, v.GrVed, v.Prof,
+
+            g.Id           AS GrntiId,
+            g.Codrub,
+            g.Rubrika
+            FROM Exhibits e
+            LEFT JOIN Vuz   v ON v.Codvuz = e.Codvuz
+            LEFT JOIN Grnti g ON g.Codrub = substr(e.Grnti, 1, 2);
+            """;
+            cmd.ExecuteNonQuery();
+        }
+
+        public List<FullModel> GetAll()
+        {
+            var list = new List<FullModel>();
+
+            var rubrics = new Dictionary<string, string>();
+            using (var conn = _factory.Create())
+            {
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT Codrub, Rubrika FROM Grnti;";
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var cod = r.GetStringOrNull(0);
+                    var name = r.GetStringOrNull(1);
+                    if (!string.IsNullOrWhiteSpace(cod))
+                        rubrics[cod.Trim()] = name ?? "";
+                }
+            }
+
+            using (var conn = _factory.Create())
+            {
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+            SELECT
+                ExhibitId, Codvuz, Z2, Type, Regnumber, Subject, Grnti,
+                Bossname, Bosstitle, Exhitype, Vystavki, Exponat,
+                VuzId, Z1, Z1Full, Region, City, Status, Obl, OblName, GrVed, Prof,
+                GrntiId, Codrub, Rubrika
+            FROM AllDataView;
+            """;
+
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var grntiRaw = r.GetStringOrNull(6);
+
+                    var codes = ExtractMainCodes(grntiRaw);
+
+                    var rubrikas = codes.Select(c => rubrics.TryGetValue(c, out var n) ? n : null)
+                        .Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+
+                    list.Add(new FullModel
+                    {
+                        Id = r.GetInt64(0),
+                        Codvuz = r.GetStringOrNull(1),
+                        Z2 = r.GetStringOrNull(2),
+                        Type = r.GetStringOrNull(3),
+                        Regnumber = r.GetStringOrNull(4),
+                        Subject = r.GetStringOrNull(5),
+                        Grnti = grntiRaw,
+                        Bossname = r.GetStringOrNull(7),
+                        Bosstitle = r.GetStringOrNull(8),
+                        Exhitype = r.GetStringOrNull(9),
+                        Vystavki = r.GetStringOrNull(10),
+                        Exponat = r.GetStringOrNull(11),
+                        Z1 = r.GetStringOrNull(13),
+                        Z1Full = r.GetStringOrNull(14),
+                        Region = r.GetStringOrNull(15),
+                        City = r.GetStringOrNull(16),
+                        Status = r.GetStringOrNull(17),
+                        Obl = r.GetStringOrNull(18),
+                        OblName = r.GetStringOrNull(19),
+                        GrVed = r.GetStringOrNull(20),
+                        Prof = r.GetStringOrNull(21),
+                        Codrub = string.Join("; ", codes),
+                        Rubrika = string.Join("; ", rubrikas),
+                    });
+                }
+            }
+
+            return list;
+        }
+
+        private static List<string> ExtractMainCodes(string? raw)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(raw)) return result;
+            var parts = raw.Split(new[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var trimmed = part.Trim();
+                if (trimmed.Length >= 2 && char.IsDigit(trimmed[0]) && char.IsDigit(trimmed[1]))
+                {
+                    var code = trimmed.Substring(0, 2);
+                    if (!result.Contains(code))
+                        result.Add(code);
+                }
+            }
+            return result;
+        }
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Sqlite/GrntiRepository.cs">
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using SQLWerk.Data.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace SQLWerk.Data.Sqlite
 {
-    internal class ExhibitRepository : IExhibitRepository
+    internal class GrntiRepository : IGrntiRepository
     {
         private const string InsertSql = """
-            INSERT INTO Exhibits
-                (Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat)
+            INSERT INTO Grnti
+                (Codrub,Rubrika)
             VALUES
-                ($c,$z,$t,$r,$s,$g,$bn,$bt,$e,$v,$ex);
+                ($c,$r);
             """;
         private readonly IConnectionFactory _factory;
 
-        public ExhibitRepository(IConnectionFactory factory) => _factory = factory;
+        public GrntiRepository(IConnectionFactory factory) => _factory = factory;
         public void EnsureCreated()
         {
             using var conn = _factory.Create();
@@ -1668,43 +1949,33 @@ namespace SQLWerk.Data.Sqlite
 
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                CREATE TABLE IF NOT EXISTS Exhibits (
+                CREATE TABLE IF NOT EXISTS Grnti (
                     Id INTEGER PRIMARY KEY,
-                    Codvuz TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT, Subject TEXT,
-                    Grnti TEXT, Bossname TEXT, Bosstitle TEXT, Exhitype TEXT, Vystavki TEXT, Exponat TEXT
+                    Codrub TEXT, Rubrika TEXT
                 );
                 """;
             cmd.ExecuteNonQuery();
         }
 
-        public List<ExhibitTableRow> GetAll()
+        public List<GrntiTableRow> GetAll()
         {
-            var list = new List<ExhibitTableRow>();
+            var list = new List<GrntiTableRow>();
             using var conn = _factory.Create();
             conn.Open();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT Id,Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat
-                FROM Exhibits;
+                SELECT Id,Codrub,Rubrika
+                FROM Grnti;
                 """;
 
             using var r = cmd.ExecuteReader();
             while (r.Read())
             {
-                list.Add(new ExhibitTableRow
+                list.Add(new GrntiTableRow
                 {
                     Id = r.GetLong(0),
-                    Codvuz = r.GetStringOrNull(1),
-                    Z2 = r.GetStringOrNull(2),
-                    Type = r.GetStringOrNull(3),
-                    Regnumber = r.GetStringOrNull(4),
-                    Subject = r.GetStringOrNull(5),
-                    Grnti = r.GetStringOrNull(6),
-                    Bossname = r.GetStringOrNull(7),
-                    Bosstitle = r.GetStringOrNull(8),
-                    Exhitype = r.GetStringOrNull(9),
-                    Vystavki = r.GetStringOrNull(10),
-                    Exponat = r.GetStringOrNull(11),
+                    Codrub = r.GetStringOrNull(1),
+                    Rubrika = r.GetStringOrNull(2),
                 });
             }
             return list;
@@ -1715,11 +1986,11 @@ namespace SQLWerk.Data.Sqlite
             using var conn = _factory.Create();
             conn.Open();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM Exhibits;";
+            cmd.CommandText = "SELECT COUNT(*) FROM Grnti;";
             return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
-        public void SaveAll(IEnumerable<ExhibitTableRow> rows)
+        public void SaveAll(IEnumerable<GrntiTableRow> rows)
         {
             using var conn = _factory.Create();
             conn.Open();
@@ -1732,38 +2003,141 @@ namespace SQLWerk.Data.Sqlite
             foreach (var row in rows)
             {
                 cmd.Parameters.Clear();
-                cmd.AddParam("$c", row.Codvuz);
-                cmd.AddParam("$z", row.Z2);
-                cmd.AddParam("$t", row.Type);
-                cmd.AddParam("$r", row.Regnumber);
-                cmd.AddParam("$s", row.Subject);
-                cmd.AddParam("$g", row.Grnti);
-                cmd.AddParam("$bn", row.Bossname);
-                cmd.AddParam("$bt", row.Bosstitle);
-                cmd.AddParam("$e", row.Exhitype);
-                cmd.AddParam("$v", row.Vystavki);
-                cmd.AddParam("$ex", row.Exponat);
+                cmd.AddParam("$c", row.Codrub);
+                cmd.AddParam("$r", row.Rubrika);
                 cmd.ExecuteNonQuery();
             }
             tx.Commit();
+        }
+
+        public void Clear()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Grnti;";
+            cmd.ExecuteNonQuery();
         }
     }
 }
 </file>
 
-<file path="SQLWerk/Services/IExcelReader.cs">
-using Microsoft.Data.Sqlite;
+<file path="SQLWerk/Data/Sqlite/VuzRepository.cs">
 using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Extensions;
 using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace SQLWerk.Services
+namespace SQLWerk.Data.Sqlite
 {
-    public interface IExcelReader
+    internal class VuzRepository : IVuzRepository
     {
-        List<T> Parse<T>(string filePath) where T : ITableRow, new();
+        private const string InsertSql = """
+            INSERT INTO Vuz
+                (Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof)
+            VALUES
+                ($co,$z1,$z1f,$z2,$r,$ci,$st,$ob,$on,$gv,$p);
+            """;
+        private readonly IConnectionFactory _factory;
+
+        public VuzRepository(IConnectionFactory factory) => _factory = factory;
+        public void EnsureCreated()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS Vuz (
+                    Id INTEGER PRIMARY KEY,
+                    Codvuz TEXT, Z1 TEXT, Z1Full TEXT, Z2 TEXT, Region TEXT,
+                    City TEXT, Status TEXT, Obl TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
+                );
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        public List<VuzTableRow> GetAll()
+        {
+            var list = new List<VuzTableRow>();
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT Id,Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof
+                FROM Vuz;
+                """;
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                list.Add(new VuzTableRow
+                {
+                    Id = r.GetLong(0),
+                    Codvuz = r.GetStringOrNull(1),
+                    Z1 = r.GetStringOrNull(2),
+                    Z1Full = r.GetStringOrNull(3),
+                    Z2 = r.GetStringOrNull(4),
+                    Region = r.GetStringOrNull(5),
+                    City = r.GetStringOrNull(6),
+                    Status = r.GetStringOrNull(7),
+                    Obl = r.GetStringOrNull(8),
+                    OblName = r.GetStringOrNull(9),
+                    GrVed = r.GetStringOrNull(10),
+                    Prof = r.GetStringOrNull(11),
+                });
+            }
+            return list;
+        }
+
+        public int Count()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM Vuz;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        public void SaveAll(IEnumerable<VuzTableRow> rows)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var tx = conn.BeginTransaction();
+
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = InsertSql;
+
+            foreach (var row in rows)
+            {
+                cmd.Parameters.Clear();
+                cmd.AddParam("$co", row.Codvuz);
+                cmd.AddParam("$z1", row.Z1);
+                cmd.AddParam("$z1f", row.Z1Full);
+                cmd.AddParam("$z2", row.Z2);
+                cmd.AddParam("$r", row.Region);
+                cmd.AddParam("$ci", row.City);
+                cmd.AddParam("$st", row.Status);
+                cmd.AddParam("$ob", row.Obl);
+                cmd.AddParam("$on", row.OblName);
+                cmd.AddParam("$gv", row.GrVed);
+                cmd.AddParam("$p", row.Prof);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+
+        public void Clear()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Vuz;";
+            cmd.ExecuteNonQuery();
+        }
     }
 }
 </file>
@@ -2024,71 +2398,121 @@ LEFT JOIN boss b ON ...
 </Solution>
 </file>
 
-<file path="SQLWerk/Models/GrntiTableRow.cs">
-using ExcelDataReader;
+<file path="SQLWerk/Data/Sqlite/ExhibitRepository.cs">
 using SQLWerk.Data.Abstractions;
-using SQLWerk.Services;
+using SQLWerk.Data.Extensions;
+using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 using System.Text;
 
-namespace SQLWerk.Models
+namespace SQLWerk.Data.Sqlite
 {
-    public class GrntiTableRow : ITableRow
+    internal class ExhibitRepository : IExhibitRepository
     {
-        public long Id { get; set; }
-        public string? Codrub { get; set; }
-        public string? Rubrika { get; set; }
+        private const string InsertSql = """
+            INSERT INTO Exhibits
+                (Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat)
+            VALUES
+                ($c,$z,$t,$r,$s,$g,$bn,$bt,$e,$v,$ex);
+            """;
+        private readonly IConnectionFactory _factory;
 
-        public void FillTable(IExcelDataReader r)
+        public ExhibitRepository(IConnectionFactory factory) => _factory = factory;
+        public void EnsureCreated()
         {
-            Codrub = ExcelReader.Get(r, 0);
-            Rubrika = ExcelReader.Get(r, 1);
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS Exhibits (
+                    Id INTEGER PRIMARY KEY,
+                    Codvuz TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT, Subject TEXT,
+                    Grnti TEXT, Bossname TEXT, Bosstitle TEXT, Exhitype TEXT, Vystavki TEXT, Exponat TEXT
+                );
+                """;
+            cmd.ExecuteNonQuery();
         }
-    }
-}
-</file>
 
-<file path="SQLWerk/Models/VuzTableRow.cs">
-using ExcelDataReader;
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Services;
-using System;
-using System.Collections.Generic;
-using System.Security.Cryptography;
-using System.Text;
-
-namespace SQLWerk.Models
-{
-    public class VuzTableRow : ITableRow
-    {
-        public long Id { get; set; }
-        public string? Codvuz { get; set; }
-        public string? Z1 { get; set; }
-        public string? Z1Full { get; set; }
-        public string? Z2 { get; set; }
-        public string? Region { get; set; }
-        public string? City { get; set; }
-        public string? Status { get; set; }
-        public string? Obl { get; set; }
-        public string? OblName { get; set; }
-        public string? GrVed { get; set; }
-        public string? Prof { get; set; }
-
-        public void FillTable(IExcelDataReader r)
+        public List<ExhibitTableRow> GetAll()
         {
-            Codvuz = ExcelReader.Get(r, 0);
-            Z1 = ExcelReader.Get(r, 1);
-            Z1Full = ExcelReader.Get(r, 2);
-            Z2 = ExcelReader.Get(r, 3);
-            Region = ExcelReader.Get(r, 4);
-            City = ExcelReader.Get(r, 5);
-            Status = ExcelReader.Get(r, 6);
-            Obl = ExcelReader.Get(r, 7);
-            OblName = ExcelReader.Get(r, 8);
-            GrVed = ExcelReader.Get(r, 9);
-            Prof = ExcelReader.Get(r, 10);
+            var list = new List<ExhibitTableRow>();
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT Id,Codvuz,Z2,Type,Regnumber,Subject,Grnti,Bossname,Bosstitle,Exhitype,Vystavki,Exponat
+                FROM Exhibits;
+                """;
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                list.Add(new ExhibitTableRow
+                {
+                    Id = r.GetLong(0),
+                    Codvuz = r.GetStringOrNull(1),
+                    Z2 = r.GetStringOrNull(2),
+                    Type = r.GetStringOrNull(3),
+                    Regnumber = r.GetStringOrNull(4),
+                    Subject = r.GetStringOrNull(5),
+                    Grnti = r.GetStringOrNull(6),
+                    Bossname = r.GetStringOrNull(7),
+                    Bosstitle = r.GetStringOrNull(8),
+                    Exhitype = r.GetStringOrNull(9),
+                    Vystavki = r.GetStringOrNull(10),
+                    Exponat = r.GetStringOrNull(11),
+                });
+            }
+            return list;
+        }
+
+        public int Count()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM Exhibits;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        public void SaveAll(IEnumerable<ExhibitTableRow> rows)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var tx = conn.BeginTransaction();
+
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = InsertSql;
+
+            foreach (var row in rows)
+            {
+                cmd.Parameters.Clear();
+                cmd.AddParam("$c", row.Codvuz);
+                cmd.AddParam("$z", row.Z2);
+                cmd.AddParam("$t", row.Type);
+                cmd.AddParam("$r", row.Regnumber);
+                cmd.AddParam("$s", row.Subject);
+                cmd.AddParam("$g", row.Grnti);
+                cmd.AddParam("$bn", row.Bossname);
+                cmd.AddParam("$bt", row.Bosstitle);
+                cmd.AddParam("$e", row.Exhitype);
+                cmd.AddParam("$v", row.Vystavki);
+                cmd.AddParam("$ex", row.Exponat);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+
+        public void Clear()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Exhibits;";
+            cmd.ExecuteNonQuery();
         }
     }
 }
@@ -2099,7 +2523,7 @@ namespace SQLWerk.Models
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SQLWerk.App"
              xmlns:local="using:SQLWerk"
-             RequestedThemeVariant="Dark">
+             RequestedThemeVariant="Light">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
@@ -2109,6 +2533,7 @@ namespace SQLWerk.Models
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source ="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+        <StyleInclude Source="avares://SQLWerk/Styles/DataGridStyles.axaml"/>
     </Application.Styles>
 </Application>
 </file>
@@ -2168,91 +2593,81 @@ partial class Program
 ```
 </file>
 
-<file path="SQLWerk/Models/ExhibitTableRow.cs">
+<file path="SQLWerk/Models/GrntiTableRow.cs">
 using ExcelDataReader;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Services;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace SQLWerk.Models
 {
-    public class ExhibitTableRow : ITableRow
+    public class GrntiTableRow : ITableRow
     {
+        public static readonly string[] ExpectedHeader =
+        {
+            "codrub", "rubrika"
+        };
         public long Id { get; set; }
-        public string? Codvuz { get; set; }
-        public string? Z2 { get; set; }
-        public string? Type { get; set; }
-        public string? Regnumber { get; set; }
-        public string? Subject { get; set; }
-        public string? Grnti { get; set; }
-        public string? Bossname { get; set; }
-        public string? Bosstitle { get; set; }
-        public string? Exhitype { get; set; }
-        public string? Vystavki { get; set; }
-        public string? Exponat { get; set; }
+        public string? Codrub { get; set; }
+        public string? Rubrika { get; set; }
 
         public void FillTable(IExcelDataReader r)
         {
-            Codvuz = ExcelReader.Get(r, 0);
-            Z2 = ExcelReader.Get(r, 1);
-            Type = ExcelReader.Get(r, 2);
-            Regnumber = ExcelReader.Get(r, 3);
-            Subject = ExcelReader.Get(r, 4);
-            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5));
-            Bossname = ExcelReader.Get(r, 6);
-            Bosstitle = ExcelReader.Get(r, 7);
-            Exhitype = ExcelReader.Get(r, 8);
-            Vystavki = ExcelReader.Get(r, 9);
-            Exponat = ExcelReader.Get(r, 10);
+            Codrub = ExcelReader.Get(r, 0);
+            Rubrika = ExcelReader.Get(r, 1);
         }
     }
 }
 </file>
 
-<file path="SQLWerk/Services/ExcelReader.cs">
+<file path="SQLWerk/Models/VuzTableRow.cs">
 using ExcelDataReader;
 using SQLWerk.Data.Abstractions;
-using SQLWerk.Models;
+using SQLWerk.Services;
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 
-namespace SQLWerk.Services
+namespace SQLWerk.Models
 {
-    public class ExcelReader : IExcelReader
+    public class VuzTableRow : ITableRow
     {
-        static ExcelReader()
+        public static readonly string[] ExpectedHeader =
         {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
+            "codvuz", "z1", "z1full", "z2", "region",
+            "city", "status", "obl", "oblname", "gr_ved",
+            "prof"
+        };
+        public long Id { get; set; }
+        public string? Codvuz { get; set; }
+        public string? Z1 { get; set; }
+        public string? Z1Full { get; set; }
+        public string? Z2 { get; set; }
+        public string? Region { get; set; }
+        public string? City { get; set; }
+        public string? Status { get; set; }
+        public string? Obl { get; set; }
+        public string? OblName { get; set; }
+        public string? GrVed { get; set; }
+        public string? Prof { get; set; }
 
-        public List<T> Parse<T>(string filePath) where T : ITableRow, new()
+        public void FillTable(IExcelDataReader r)
         {
-            var result = new List<T>();
-
-            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
-            using var reader = ExcelReaderFactory.CreateReader(stream);
-
-            reader.Read();
-
-            while (reader.Read())
-            {
-                var row = new T();
-                row.FillTable(reader);
-                result.Add(row);
-            }
-            return result;
-        }
-
-        internal static string? Get(IExcelDataReader reader, int idx)
-        {
-            if (idx >= reader.FieldCount) return null;
-
-            var v = reader.GetValue(idx);
-            return v?.ToString();
+            Codvuz = ExcelReader.Get(r, 0);
+            Z1 = ExcelReader.Get(r, 1);
+            Z1Full = ExcelReader.Get(r, 2);
+            Z2 = ExcelReader.Get(r, 3);
+            Region = ExcelReader.Get(r, 4);
+            City = ExcelReader.Get(r, 5);
+            Status = ExcelReader.Get(r, 6);
+            Obl = ExcelReader.Get(r, 7);
+            OblName = ExcelReader.Get(r, 8);
+            GrVed = ExcelReader.Get(r, 9);
+            Prof = ExcelReader.Get(r, 10);
         }
     }
 }
@@ -2625,92 +3040,116 @@ FodyWeavers.xsd
 /SQLWerk/.editorconfig
 </file>
 
-<file path="SQLWerk/Services/GrntiService.cs">
+<file path="SQLWerk/Models/ExhibitTableRow.cs">
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Services;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Text.RegularExpressions;
 
-namespace SQLWerk.Services
+namespace SQLWerk.Models
 {
-    public class GrntiService
+    public class ExhibitTableRow : ITableRow
     {
-        public static string ParseGrnti(string? codeString)
+        public static readonly string[] ExpectedHeader =
         {
-            string pattern1 = @"\b(\d{2}),(\d{2}),(\d{2})\b";
-            string pattern2 = @"\b(\d{2}),(\d{2})\b";
+            "codvuz", "z2", "type", "regnumber", "subject",
+            "grnti", "bossname", "bosstitle", "exhitype", "vystavki",
+            "exponat"
+        };
 
-            if (codeString != null)
-            {
-                codeString = codeString.Trim();
-                codeString = Regex.Replace(codeString, pattern1, "$1.$2.$3");
-                codeString = Regex.Replace(codeString, pattern2, "$1.$2");
-                string[] codes = codeString.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
+        public long Id { get; set; }
+        public string? Codvuz { get; set; }
+        public string? Z2 { get; set; }
+        public string? Type { get; set; }
+        public string? Regnumber { get; set; }
+        public string? Subject { get; set; }
+        public string? Grnti { get; set; }
+        public string? Bossname { get; set; }
+        public string? Bosstitle { get; set; }
+        public string? Exhitype { get; set; }
+        public string? Vystavki { get; set; }
+        public string? Exponat { get; set; }
 
-                for (int i = 0; i < codes.Length; i++)
-                {
-                    codes[i] = codes[i].Trim();
-                    if (!(IsValid(codes[i])))
-                    {
-                        return codeString;
-                    }
-                }
-
-                string codeResult = string.Join(", ", codes);
-                return codeResult;
-            }
-            return codeString;
-        }
-
-        public static bool IsValid(string code)
+        public void FillTable(IExcelDataReader r)
         {
-            return (Regex.IsMatch(code, @"^\d{2}\.\d{2}\.\d{2}$") ||
-                Regex.IsMatch(code, @"^\d{2}\.\d{2}$") ||
-                Regex.IsMatch(code, @"^\d{2}$"));
+            Codvuz = ExcelReader.Get(r, 0);
+            Z2 = ExcelReader.Get(r, 1);
+            Type = ExcelReader.Get(r, 2);
+            Regnumber = ExcelReader.Get(r, 3);
+            Subject = ExcelReader.Get(r, 4);
+            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5));
+            Bossname = ExcelReader.Get(r, 6);
+            Bosstitle = ExcelReader.Get(r, 7);
+            Exhitype = ExcelReader.Get(r, 8);
+            Vystavki = ExcelReader.Get(r, 9);
+            Exponat = ExcelReader.Get(r, 10);
         }
     }
 }
 </file>
 
-<file path="SQLWerk/Views/MainWindow.axaml">
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:SQLWerk.ViewModels"
-        x:Class="SQLWerk.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Width="1500" Height="850"
-        Title="Выставки МО">
-    <DockPanel>
-        <StackPanel DockPanel.Dock="Top"
-            Orientation="Horizontal"
-            Spacing="8"
-            Margin="8">
-        <Button Content="Exhibits"
-            Command="{Binding SelectExhibitsCommand}" />
-        <Button Content="Vuz"
-            Command="{Binding SelectVuzCommand}" />
-        <Button Content="Grnti"
-            Command="{Binding SelectGrntiCommand}" />
+<file path="SQLWerk/Services/ExcelReader.cs">
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
 
-        <TextBlock Text="{Binding Status}"
-               VerticalAlignment="Center"
-               Margin="16,0,0,0" />
-        </StackPanel>
+namespace SQLWerk.Services
+{
+    public class ExcelReader : IExcelReader
+    {
+        static ExcelReader()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        }
 
-        <Grid>
-            <DataGrid ItemsSource="{Binding Exhibits}"
-                      IsVisible="{Binding ShowExhibits}"
-                      AutoGenerateColumns="True" />
-            <DataGrid ItemsSource="{Binding Vuzes}"
-                      IsVisible="{Binding ShowVuz}"
-                      AutoGenerateColumns="True" />
-            <DataGrid ItemsSource="{Binding Grnti}"
-                      IsVisible="{Binding ShowGrnti}"
-                      AutoGenerateColumns="True" />
-        </Grid>
+        public List<T> Parse<T>(string filePath) where T : ITableRow, new()
+        {
+            var result = new List<T>();
 
-    </DockPanel>
-</Window>
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+
+            reader.Read();
+
+            while (reader.Read())
+            {
+                var row = new T();
+                row.FillTable(reader);
+                result.Add(row);
+            }
+            return result;
+        }
+
+        internal static string? Get(IExcelDataReader reader, int idx)
+        {
+            if (idx >= reader.FieldCount) return null;
+
+            var v = reader.GetValue(idx);
+            return v?.ToString();
+        }
+
+        public string[] GetHeaders(string filePath)
+        {
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+
+            if (!reader.Read()) return Array.Empty<string>();
+
+            var headers = new string[reader.FieldCount];
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                headers[i] = reader.GetValue(i)?.ToString()?.Trim() ?? "";
+            }
+            return headers;
+        }
+    }
+}
 </file>
 
 <file path="SQLWerk/SQLWerk.csproj">
@@ -2757,7 +3196,58 @@ namespace SQLWerk.Services
   <ItemGroup>
     <None Include="E:\SQLWerk\SQLWerk\.editorconfig" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Styles\" />
+  </ItemGroup>
 </Project>
+</file>
+
+<file path="SQLWerk/Services/GrntiService.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace SQLWerk.Services
+{
+    public class GrntiService
+    {
+        public static string ParseGrnti(string? codeString)
+        {
+            string pattern1 = @"\b(\d{2}),(\d{2}),(\d{2})\b";
+            //string pattern2 = @"\b(\d{2}),(\d{2})\b";
+
+            if (codeString != null)
+            {
+                codeString = codeString.Trim();
+                codeString = Regex.Replace(codeString, pattern1, "$1.$2.$3");
+                //codeString = Regex.Replace(codeString, pattern2, "$1.$2");
+                string[] codes = codeString.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
+
+                for (int i = 0; i < codes.Length; i++)
+                {
+                    codes[i] = codes[i].Trim();
+                    if (!(IsValid(codes[i])))
+                    {
+                        return codeString;
+                    }
+                }
+
+                string codeResult = string.Join(", ", codes);
+                return codeResult;
+            }
+            return codeString;
+        }
+
+        public static bool IsValid(string code)
+        {
+            return (Regex.IsMatch(code, @"\A\d{2}\.\d{2}\.\d{2}\z") ||
+                Regex.IsMatch(code, @"\A\d{2}\.\d{2}\z") ||
+                Regex.IsMatch(code, @"\A\d{2}\z"));
+        }
+    }
+}
 </file>
 
 <file path="SQLWerk/Services/ImportService.cs">
@@ -2792,9 +3282,71 @@ namespace SQLWerk.Services
             _repo.SaveAll(read);
             return (read.Count, read.Count);
         }
+
+        public (int imported, int total) ForceImport(string? xlsPath)
+        {
+            _repo.EnsureCreated();
+            _repo.Clear();
+            if (_repo.Count() > 0) return (0, _repo.Count());
+            if (xlsPath is null || !File.Exists(xlsPath)) return (0, 0);
+
+            var read = _reader.Parse<T>(xlsPath);
+            _repo.SaveAll(read);
+            return (read.Count, read.Count);
+        }
         public List<T> LoadAll() => _repo.GetAll();
+
+        public int Count() => _repo.Count();
     }
 }
+</file>
+
+<file path="SQLWerk/Views/MainWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Width="1500" Height="850"
+        Title="Выставки МО">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top"
+            Orientation="Horizontal"
+            Spacing="8"
+            Margin="8">
+        <Button Content="Exhibits"
+            Command="{Binding SelectExhibitsCommand}" />
+        <Button Content="Vuz"
+            Command="{Binding SelectVuzCommand}" />
+        <Button Content="Grnti"
+            Command="{Binding SelectGrntiCommand}" />
+        <Button Content="Full Info"
+            Command="{Binding SelectFullCommand}" />
+        <TextBlock Text="{Binding Status}"
+               VerticalAlignment="Center"
+               Margin="16,0,0,0" />
+        <Button Content = "Load"
+                Command="{Binding LoadCommand}"
+                Margin ="8"/> 
+        </StackPanel>
+
+        <Grid>
+            <DataGrid ItemsSource="{Binding Exhibits}"
+                      IsVisible="{Binding ShowExhibits}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding Vuzes}"
+                      IsVisible="{Binding ShowVuz}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding Grnti}"
+                      IsVisible="{Binding ShowGrnti}"
+                      AutoGenerateColumns="True" />
+            <DataGrid ItemsSource="{Binding FullTable}"
+                      IsVisible="{Binding ShowAll}"
+                      AutoGenerateColumns="True" />
+        </Grid>
+
+    </DockPanel>
+</Window>
 </file>
 
 <file path="SQLWerk/ViewModels/MainWindowViewModel.cs">
@@ -2818,9 +3370,20 @@ namespace SQLWerk.ViewModels
 {
     public partial class MainWindowViewModel : ObservableObject
     {
+        private string? _exhibitsPath;
+        private string? _vuzPath;
+        private string? _grntiPath;
+
+
         private readonly ImportService<ExhibitTableRow> _exhibitImport;
         private readonly ImportService<VuzTableRow> _vuzImport;
         private readonly ImportService<GrntiTableRow> _grntiImport;
+        private readonly IExhibitRepository _exhibitRepo;
+        private readonly IVuzRepository _vuzRepo;
+        private readonly IGrntiRepository _grntiRepo;
+        private readonly IFullDataRepository _fullDataRepo;
+        private readonly IFilePicker _picker;
+        private readonly IExcelReader _reader;
 
         [ObservableProperty]
         private ObservableCollection<ExhibitTableRow> _exhibits = new();
@@ -2830,6 +3393,9 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty]
         private ObservableCollection<GrntiTableRow> _grnti = new();
+
+        [ObservableProperty]
+        private ObservableCollection<FullModel> _fullTable = new();
 
         [ObservableProperty]
         private string _status = "Loading...";
@@ -2846,20 +3412,75 @@ namespace SQLWerk.ViewModels
         [ObservableProperty]
         private bool _showGrnti;
 
-        public MainWindowViewModel(ImportService<ExhibitTableRow> exhibitImport,
+        [ObservableProperty]
+        private bool _showAll;
+
+        [ObservableProperty]
+        private bool _isBusy;
+
+        public MainWindowViewModel(
+            ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
-            ImportService<GrntiTableRow> grntiImport)
+            ImportService<GrntiTableRow> grntiImport,
+            IExhibitRepository exhibitRepo,
+            IVuzRepository vuzRepo,
+            IGrntiRepository grntiRepo,
+            IFullDataRepository fullDataRepo,
+            IFilePicker picker,
+            IExcelReader reader)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
             _grntiImport = grntiImport;
+            _fullDataRepo = fullDataRepo;
+            _picker = picker;
+            _reader = reader;
+            _exhibitRepo = exhibitRepo;
+            _vuzRepo = vuzRepo;
+            _grntiRepo = grntiRepo;
         }
 
-        public void Initialize(string exhibitsPath, string vuzPath, string grntiPath)
+        public void Initialize()
         {
-            _exhibitImport.ImportIfEmpty(exhibitsPath);
-            _vuzImport.ImportIfEmpty(vuzPath);
-            _grntiImport.ImportIfEmpty(grntiPath);
+            _exhibitRepo.EnsureCreated();
+            _vuzRepo.EnsureCreated();
+            _grntiRepo.EnsureCreated();
+            _fullDataRepo.EnsureCreated();
+
+            var haveData =
+                _exhibitImport.Count() > 0 || _vuzImport.Count() > 0 || _grntiImport.Count() > 0;
+            if (haveData)
+            {
+                ReloadFromDatabase();
+                Status = "Data loaded from DataBase";
+            }
+            else
+            {
+                Status = "Press Load to choose xls files";
+            } 
+        }
+
+        private void ReloadFromDatabase()
+        {
+            FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
+            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
+            Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
+            Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
+
+            SelectExhibitsCommand.Execute(null);
+        }
+
+        private void LoadAll()
+        {
+            if (_exhibitsPath is null || _vuzPath is null || _grntiPath is null)
+                return;
+
+            _exhibitImport.ImportIfEmpty(_exhibitsPath);
+            _vuzImport.ImportIfEmpty(_vuzPath);
+            _grntiImport.ImportIfEmpty(_grntiPath);
+
+            _fullDataRepo.EnsureCreated();
+            FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
 
             Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
             Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
@@ -2874,6 +3495,7 @@ namespace SQLWerk.ViewModels
             ShowExhibits = true;
             ShowVuz = false;
             ShowGrnti = false;
+            ShowAll = false;
 
             RowCount = Exhibits.Count;
             Status = $"Exhibits: {RowCount} rows";
@@ -2885,6 +3507,7 @@ namespace SQLWerk.ViewModels
             ShowExhibits = false;
             ShowVuz = true;
             ShowGrnti = false;
+            ShowAll = false;
 
             RowCount = Vuzes.Count;
             Status = $"Vuz: {RowCount} rows";
@@ -2895,10 +3518,115 @@ namespace SQLWerk.ViewModels
         {
             ShowExhibits = false;
             ShowVuz = false;
+            ShowAll = false;
             ShowGrnti = true;
 
             RowCount = Grnti.Count;
             Status = $"Grnti: {RowCount} rows";
+        }
+
+        [RelayCommand]
+        public void SelectFull()
+        {
+            ShowAll = true;
+            ShowExhibits = false;
+            ShowGrnti = false;
+            ShowVuz = false;
+
+            RowCount = FullTable.Count;
+            Status = $"Full data: {RowCount} rows";
+        }
+
+        [RelayCommand]
+        
+        private async Task LoadAsync()
+        {
+            var files = await _picker.PickFilesAsync("Choose files containing Vyst_mo, VUZ and grntirub data", 3);
+            if (files is null)
+            {
+                Status = "Load cancelled";
+                return;
+            }
+
+            string? exhibitsPath = null;
+            string? vuzPath = null;
+            string? grntiPath = null;
+
+            var errs = new List<string>();
+            foreach (var file in files)
+            {
+                string err;
+                if (exhibitsPath is null && HeaderValidator.IsMatch(file,
+                    ExhibitTableRow.ExpectedHeader,
+                    _reader,
+                    out err))
+                {
+                    exhibitsPath = file;
+                    continue;
+                }
+
+                if (vuzPath is null && HeaderValidator.IsMatch(file,
+                    VuzTableRow.ExpectedHeader,
+                    _reader,
+                    out err))
+                {
+                    vuzPath = file;
+                    continue;
+                }
+
+                if (grntiPath is null && HeaderValidator.IsMatch(file,
+                    GrntiTableRow.ExpectedHeader,
+                    _reader,
+                    out err))
+                {
+                    grntiPath = file;
+                    continue;
+                }
+
+                errs.Add($"File {Path.GetFileName(file)} doesn't match");
+            }
+
+            if (exhibitsPath is null)
+            {
+                errs.Add("File with Vyst_mo data was not found!");
+            }
+            if (vuzPath is null)
+            {
+                errs.Add("File with VUZ data was not found!");
+            }
+            if (grntiPath is null)
+            {
+                errs.Add("File with grntirub data was not found!");
+            }
+
+            bool hasNull = (exhibitsPath is null || vuzPath is null || grntiPath is null);
+
+            if (errs.Count > 0)
+            {
+                Status = "Errors while loading: \n" + string.Join("\n", errs);
+            }
+
+            if (errs.Count > 0 && hasNull)
+            {
+                Status = "Critical errors while loading: \n" + string.Join("\n", errs);
+                return;
+            }
+
+            try
+            {
+                _exhibitImport.ForceImport(exhibitsPath!);
+                _vuzImport.ForceImport(vuzPath!);
+                _grntiImport.ForceImport(grntiPath!);
+
+                ReloadFromDatabase();
+
+                SelectExhibitsCommand.Execute(null);
+                Status = $"Загружено: Exhibits={Exhibits.Count}, Vuz={Vuzes.Count}, Grnti={Grnti.Count}";
+            }
+            catch (Exception ex)
+            {
+                Status = "Ошибка импорта: " + ex.Message;
+            }
         }
     }
 
@@ -2944,16 +3672,18 @@ public partial class App : Application
             ConfigureServices(services);
             Services = services.BuildServiceProvider();
 
+            var window = new MainWindow();
+            var picker = new FilePicker(window);
+
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 var baseDir = AppContext.BaseDirectory;
-                var exhibitsPath = Path.Combine(baseDir, "Vyst_mo.xls");
-                var vuzPath = Path.Combine(baseDir, "VUZ.xls");
-                var grntiPath = Path.Combine(baseDir, "grntirub.xls");
 
-                var vm = Services.GetRequiredService<MainWindowViewModel>();
-                vm.Initialize(exhibitsPath, vuzPath, grntiPath);
-                desktop.MainWindow = new MainWindow { DataContext = vm };
+                var vm = ActivatorUtilities.CreateInstance<MainWindowViewModel>(
+                    Services, picker);
+                vm.Initialize();
+                window.DataContext = vm;
+                desktop.MainWindow = window;
             }
         }
         catch (Exception ex)
@@ -2976,12 +3706,17 @@ public partial class App : Application
         services.AddScoped<IExhibitRepository, ExhibitRepository>();
         services.AddScoped<IVuzRepository, VuzRepository>();
         services.AddScoped<IGrntiRepository, GrntiRepository>();
+        services.AddScoped<IFullDataRepository, FullDataRepository>();
 
         services.AddScoped<IRepository<ExhibitTableRow>>(sp => sp.GetRequiredService<IExhibitRepository>());
         services.AddScoped<IRepository<VuzTableRow>>(sp => sp.GetRequiredService<IVuzRepository>());
         services.AddScoped<IRepository<GrntiTableRow>>(sp => sp.GetRequiredService<IGrntiRepository>());
+        services.AddScoped<IDataBaseMaintenanceService>(sp => new DataBaseMaintenanceService(
+            sp.GetRequiredService<IConnectionFactory>(),
+            sp.GetRequiredService<IFullDataRepository>(),
+            dbPath));
 
-        services.AddScoped < ImportService<ExhibitTableRow>>();
+        services.AddScoped <ImportService<ExhibitTableRow>>();
         services.AddScoped<ImportService<VuzTableRow>>();
         services.AddScoped<ImportService<GrntiTableRow>>();
 
