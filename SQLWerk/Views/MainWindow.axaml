@@ -32,19 +32,80 @@
 		</StackPanel>
 
         <Grid>
-            <DataGrid ItemsSource="{Binding Exhibits}"
-                      IsVisible="{Binding ShowExhibits}"
-                      AutoGenerateColumns="True" />
-            <DataGrid ItemsSource="{Binding Vuzes}"
-                      IsVisible="{Binding ShowVuz}"
-                      AutoGenerateColumns="True" />
+			<DataGrid ItemsSource="{Binding Exhibits}"
+				AutoGenerateColumns="False"
+				IsVisible="{Binding ShowExhibits}"
+				IsReadOnly="True">
+				<DataGrid.Columns>
+					<DataGridTextColumn Header="Номер" Binding="{Binding Id}" />
+					<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+					<DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
+					<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+					<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+					<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+					<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+					<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+					<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+					<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+					<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+				</DataGrid.Columns>
+			</DataGrid>
+			<DataGrid ItemsSource="{Binding Vuzes}"
+				AutoGenerateColumns="False"
+			    IsVisible="{Binding ShowVuz}"
+				IsReadOnly="True">
+				<DataGrid.Columns>
+					<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+					<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+					<DataGridTextColumn Header="Полное наименование" Binding="{Binding Z1Full}" />
+					<DataGridTextColumn Header="Краткое наименование" Binding="{Binding Z2}" />
+					<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+					<DataGridTextColumn Header="Город" Binding="{Binding City}" />
+					<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+					<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+					<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+					<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+					<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+				</DataGrid.Columns>
+			</DataGrid>
             <DataGrid ItemsSource="{Binding Grnti}"
-                      IsVisible="{Binding ShowGrnti}"
-                      AutoGenerateColumns="True" />
+                AutoGenerateColumns="False"
+				IsVisible="{Binding ShowGrnti}"
+				IsReadOnly="True">
+				<DataGrid.Columns>
+					<DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}" />
+					<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
+				</DataGrid.Columns>
+			</DataGrid>
             <DataGrid ItemsSource="{Binding FullTable}"
-                      IsVisible="{Binding ShowAll}"
-                      AutoGenerateColumns="True" />
+                AutoGenerateColumns="False"
+				IsVisible="{Binding ShowAll}"
+				IsReadOnly="True">
+				<DataGrid.Columns>
+					<DataGridTextColumn Header="Номер" Binding="{Binding Id}" />
+					<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
+					<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+					<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+					<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+					<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
+					<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+					<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+					<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+					<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+					<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+					<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+					<DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
+					<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+					<DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
+					<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+					<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+					<DataGridTextColumn Header="Город" Binding="{Binding City}" />
+					<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+					<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+					<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+					<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+				</DataGrid.Columns>
+			</DataGrid>
         </Grid>
-
     </DockPanel>
 </Window>
