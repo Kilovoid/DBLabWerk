@@ -6,7 +6,6 @@ namespace SQLWerk.Models
 {
     public class FullModel
     {
-        public string Source { get; set; } = "";
         public long Id { get; set; }
 
         public string? Codvuz { get; set; }
