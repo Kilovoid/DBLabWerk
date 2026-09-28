@@ -111,14 +111,13 @@ namespace SQLWerk.ViewModels
         private void ReloadFromDatabase()
         {
             FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
-            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
-            Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
-            Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
+            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitRepo.GetAll());
+            Vuzes = new ObservableCollection<VuzTableRow>(_vuzRepo.GetAll());
+            Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
             SelectExhibitsCommand.Execute(null);
         }
-
-        private void LoadAll()
+        private void LoadAll() //depricated for now
         {
             if (_exhibitsPath is null || _vuzPath is null || _grntiPath is null)
                 return;
@@ -127,12 +126,11 @@ namespace SQLWerk.ViewModels
             _vuzImport.ImportIfEmpty(_vuzPath);
             _grntiImport.ImportIfEmpty(_grntiPath);
 
-            _fullDataRepo.EnsureCreated();
             FullTable = new ObservableCollection<FullModel>(_fullDataRepo.GetAll());
 
-            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitImport.LoadAll());
-            Vuzes = new ObservableCollection<VuzTableRow>(_vuzImport.LoadAll());
-            Grnti = new ObservableCollection<GrntiTableRow>(_grntiImport.LoadAll());
+            Exhibits = new ObservableCollection<ExhibitTableRow>(_exhibitRepo.GetAll());
+            Vuzes = new ObservableCollection<VuzTableRow>(_vuzRepo.GetAll());
+            Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
             SelectExhibitsCommand.Execute(null);
         }

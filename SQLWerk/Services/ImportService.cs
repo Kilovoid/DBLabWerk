@@ -41,8 +41,6 @@ namespace SQLWerk.Services
             _repo.SaveAll(read);
             return (read.Count, read.Count);
         }
-        public List<T> LoadAll() => _repo.GetAll();
-
         public int Count() => _repo.Count();
     }
 }
