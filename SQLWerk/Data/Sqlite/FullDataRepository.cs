@@ -28,7 +28,7 @@ namespace SQLWerk.Data.Sqlite
             CREATE VIEW AllDataView AS
             SELECT
             e.Id           AS ExhibitId,
-            e.Codvuz, e.Z2, e.Type, e.Regnumber, e.Subject, e.Grnti,
+            e.Codvuz, v.Z2, e.Type, e.Regnumber, e.Subject, e.Grnti,
             e.Bossname, e.Bosstitle, e.Exhitype, e.Vystavki, e.Exponat,
 
             v.Id           AS VuzId,
