@@ -6,25 +6,30 @@
         Width="1080" Height="600"
         Title="Выставки МО">
     <DockPanel>
-        <StackPanel DockPanel.Dock="Top"
-            Orientation="Horizontal"
-            Spacing="8"
-            Margin="8">
-        <Button Content="Exhibits"
-            Command="{Binding SelectExhibitsCommand}" />
-        <Button Content="Vuz"
-            Command="{Binding SelectVuzCommand}" />
-        <Button Content="Grnti"
-            Command="{Binding SelectGrntiCommand}" />
-        <Button Content="Full Info"
-            Command="{Binding SelectFullCommand}" />
-        <TextBlock Text="{Binding Status}"
-               VerticalAlignment="Center"
-               Margin="16,0,0,0" />
-        <Button Content = "Load"
-                Command="{Binding LoadCommand}"
-                Margin ="8"/> 
-        </StackPanel>
+		<StackPanel DockPanel.Dock="Top" Spacing ="0">
+			<Menu>
+				<MenuItem Header ="Таблицы">
+					<MenuItem Header ="Выставки"
+							  Command ="{Binding SelectExhibitsCommand}" />
+					<MenuItem Header ="ВУЗы"
+							  Command ="{Binding SelectVuzCommand}" />
+					<MenuItem Header ="ГРНТИ"
+							  Command ="{Binding SelectGrntiCommand}" />
+					<Separator />
+					<MenuItem Header ="Вся информация"
+							  Command ="{Binding SelectFullCommand}" /> 
+				</MenuItem>
+				
+				<MenuItem Header ="Загрузка данных">
+					<MenuItem Header ="Выбрать файлы Excel"
+							  Command ="{Binding LoadCommand}" />
+				</MenuItem>
+			</Menu>
+
+			<Border Background ="#EFEFEF" Padding ="8.4">
+				<TextBlock Text="{Binding Status}" VerticalAlignment ="Center" />
+			</Border>
+		</StackPanel>
 
         <Grid>
             <DataGrid ItemsSource="{Binding Exhibits}"
