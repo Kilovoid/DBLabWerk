@@ -100,11 +100,11 @@ namespace SQLWerk.ViewModels
             if (haveData)
             {
                 ReloadFromDatabase();
-                Status = "Data loaded from DataBase";
+                Status = "Данные загружены из БД";
             }
             else
             {
-                Status = "Press Load to choose xls files";
+                Status = "Выберите файлы для импорта таблиц";
             } 
         }
 
@@ -144,7 +144,7 @@ namespace SQLWerk.ViewModels
             ShowAll = false;
 
             RowCount = Exhibits.Count;
-            Status = $"Exhibits: {RowCount} rows";
+            Status = $"Выставки: {RowCount} строк";
         }
 
         [RelayCommand]
@@ -156,7 +156,7 @@ namespace SQLWerk.ViewModels
             ShowAll = false;
 
             RowCount = Vuzes.Count;
-            Status = $"Vuz: {RowCount} rows";
+            Status = $"ВУЗы: {RowCount} строк";
         }
 
         [RelayCommand]
@@ -168,7 +168,7 @@ namespace SQLWerk.ViewModels
             ShowGrnti = true;
 
             RowCount = Grnti.Count;
-            Status = $"Grnti: {RowCount} rows";
+            Status = $"ГРНТИ: {RowCount} строк";
         }
 
         [RelayCommand]
@@ -180,17 +180,17 @@ namespace SQLWerk.ViewModels
             ShowVuz = false;
 
             RowCount = FullTable.Count;
-            Status = $"Full data: {RowCount} rows";
+            Status = $"Общие данные: {RowCount} строк";
         }
 
         [RelayCommand]
         
         private async Task LoadAsync()
         {
-            var files = await _picker.PickFilesAsync("Choose files containing Vyst_mo, VUZ and grntirub data", 3);
+            var files = await _picker.PickFilesAsync("Выберите файлы, содержащие данные Vyst_mo, VUZ, grntirub", 3);
             if (files is null)
             {
-                Status = "Load cancelled";
+                Status = "Загрузка отменена";
                 return;
             }
 
@@ -229,32 +229,32 @@ namespace SQLWerk.ViewModels
                     continue;
                 }
 
-                errs.Add($"File {Path.GetFileName(file)} doesn't match");
+                errs.Add($"Файл {Path.GetFileName(file)} не подходит");
             }
 
             if (exhibitsPath is null)
             {
-                errs.Add("File with Vyst_mo data was not found!");
+                errs.Add("Файл с данными Vyst_mo не был найден!");
             }
             if (vuzPath is null)
             {
-                errs.Add("File with VUZ data was not found!");
+                errs.Add("Файл с данными VUZ не был найден!");
             }
             if (grntiPath is null)
             {
-                errs.Add("File with grntirub data was not found!");
+                errs.Add("Файл с данными grntirub не был найден!");
             }
 
             bool hasNull = (exhibitsPath is null || vuzPath is null || grntiPath is null);
 
             if (errs.Count > 0)
             {
-                Status = "Errors while loading: \n" + string.Join("\n", errs);
+                Status = "Ошибки при загрузке: \n" + string.Join("\n", errs);
             }
 
             if (errs.Count > 0 && hasNull)
             {
-                Status = "Critical errors while loading: \n" + string.Join("\n", errs);
+                Status = "Критические ошибки при загрузке: \n" + string.Join("\n", errs);
                 return;
             }
 
@@ -267,7 +267,7 @@ namespace SQLWerk.ViewModels
                 ReloadFromDatabase();
 
                 SelectExhibitsCommand.Execute(null);
-                Status = $"Загружено: Exhibits={Exhibits.Count}, Vuz={Vuzes.Count}, Grnti={Grnti.Count}";
+                Status = $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
             }
             catch (Exception ex)
             {
