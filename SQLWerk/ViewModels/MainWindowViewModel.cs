@@ -1,18 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Text;
-using System.Threading.Tasks;
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SQLWerk.Services;
-using Avalonia.Platform.Storage;
-using System.IO;
 using ExcelDataReader;
+using Microsoft.Extensions.Logging;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
+using SQLWerk.Services;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Text;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace SQLWerk.ViewModels
 {
@@ -32,39 +34,25 @@ namespace SQLWerk.ViewModels
         private readonly IFullDataRepository _fullDataRepo;
         private readonly IFilePicker _picker;
         private readonly IExcelReader _reader;
+        private readonly InMemoryLoggerProvider _logProvider;
 
-        [ObservableProperty]
-        private ObservableCollection<ExhibitTableRow> _exhibits = new();
+        [ObservableProperty] private bool _hasErrors;
+        [ObservableProperty] private int _warningCount;
 
-        [ObservableProperty]
-        private ObservableCollection<VuzTableRow> _vuzes = new();
+        [ObservableProperty] private ObservableCollection<ExhibitTableRow> _exhibits = new();
+        [ObservableProperty] private ObservableCollection<VuzTableRow> _vuzes = new();
+        [ObservableProperty] private ObservableCollection<GrntiTableRow> _grnti = new();
+        [ObservableProperty] private ObservableCollection<FullModel> _fullTable = new();
 
-        [ObservableProperty]
-        private ObservableCollection<GrntiTableRow> _grnti = new();
+        [ObservableProperty] private string _status = "Загрузка...";
+        [ObservableProperty] private int _rowCount;
 
-        [ObservableProperty]
-        private ObservableCollection<FullModel> _fullTable = new();
+        [ObservableProperty] private bool _showExhibits = true;
+        [ObservableProperty] private bool _showVuz;
+        [ObservableProperty] private bool _showGrnti;
+        [ObservableProperty] private bool _showAll;
 
-        [ObservableProperty]
-        private string _status = "Loading...";
-
-        [ObservableProperty]
-        private int _rowCount;
-
-        [ObservableProperty]
-        private bool _showExhibits = true;
-
-        [ObservableProperty]
-        private bool _showVuz;
-
-        [ObservableProperty]
-        private bool _showGrnti;
-
-        [ObservableProperty]
-        private bool _showAll;
-
-        [ObservableProperty]
-        private bool _isBusy;
+        public event EventHandler? ShowLogRequested;
 
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
@@ -75,17 +63,32 @@ namespace SQLWerk.ViewModels
             IGrntiRepository grntiRepo,
             IFullDataRepository fullDataRepo,
             IFilePicker picker,
-            IExcelReader reader)
+            IExcelReader reader,
+            InMemoryLoggerProvider loggerProvider)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
             _grntiImport = grntiImport;
-            _fullDataRepo = fullDataRepo;
-            _picker = picker;
-            _reader = reader;
             _exhibitRepo = exhibitRepo;
             _vuzRepo = vuzRepo;
             _grntiRepo = grntiRepo;
+            _fullDataRepo = fullDataRepo;
+            _picker = picker;
+            _reader = reader;
+            _logProvider = loggerProvider;
+
+            _logProvider.Changed += OnLogChanged;
+
+            OnLogChanged(this, EventArgs.Empty);
+        }
+
+        [RelayCommand]
+        private void ShowLog() => ShowLogRequested?.Invoke(this, EventArgs.Empty);
+
+        private void OnLogChanged(object? sender, EventArgs e)
+        {
+            HasErrors = _logProvider.HasWarnings;
+            WarningCount = _logProvider.Entries.Count(x => x.Level >= LogLevel.Warning);
         }
 
         public void Initialize()
@@ -187,6 +190,8 @@ namespace SQLWerk.ViewModels
         
         private async Task LoadAsync()
         {
+            _logProvider.Clear();
+
             var files = await _picker.PickFilesAsync("Выберите файлы, содержащие данные Vyst_mo, VUZ, grntirub", 3);
             if (files is null)
             {

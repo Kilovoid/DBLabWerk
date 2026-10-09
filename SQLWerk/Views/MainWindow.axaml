@@ -26,9 +26,23 @@
 				</MenuItem>
 			</Menu>
 
-			<Border Background ="#EFEFEF" Padding ="8.4">
-				<TextBlock Text="{Binding Status}" VerticalAlignment ="Center" />
-			</Border>
+			<Border Background="#EFEFEF" Padding="8,4">
+    <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding Status}"
+                   VerticalAlignment="Center" />
+
+        <TextBlock Grid.Column="1"
+                   Text="{Binding WarningCount, StringFormat='Проблем: {0}'}"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0" />
+
+        <Button Grid.Column="2"
+                Content="Журнал"
+                Classes.blink="{Binding HasErrors}"
+                Command="{Binding ShowLogCommand}" />
+    </Grid>
+</Border>
 		</StackPanel>
 
         <Grid>
