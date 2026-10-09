@@ -3,6 +3,7 @@ using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 
@@ -28,7 +29,10 @@ namespace SQLWerk.Services
             {
                 var row = new T();
                 row.FillTable(reader);
-                result.Add(row);
+                if (ValidationService.IsValid(row))
+                {
+                    result.Add(row);
+                }
             }
             return result;
         }
