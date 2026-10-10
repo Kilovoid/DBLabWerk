@@ -2,6 +2,7 @@
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Data.Sqlite;
 using SQLWerk.Models;
@@ -56,6 +57,10 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        var logProvider = new InMemoryLoggerProvider();
+        services.AddSingleton(logProvider);
+        services.AddLogging(b => b.AddProvider(logProvider).SetMinimumLevel(LogLevel.Information));
+        services.AddTransient<LogViewModel>();
         services.AddSingleton<IExcelReader, ExcelReader>();
         var dbPath = Path.Combine(AppContext.BaseDirectory, "sqlwerk.db");
         services.AddSingleton<IConnectionFactory>(_ => new SqliteConnectionFactory(dbPath));

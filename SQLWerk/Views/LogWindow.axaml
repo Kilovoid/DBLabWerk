@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.LogWindow"
+        x:DataType="vm:LogViewModel"
+        Width="800" Height="500"
+        Title="Журнал">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="8">
+            <Button Content="Очистить" Command="{Binding ClearCommand}"/>
+            <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        </StackPanel>
+
+        <TextBox Text="{Binding LogText}"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 FontFamily="Consolas"
+                 FontSize="12"
+                 BorderThickness="0"
+                 Background="Transparent"/>
+    </DockPanel>
+</Window>
