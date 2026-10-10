@@ -9,13 +9,13 @@ namespace SQLWerk.Services
     {
         public static string ParseGrnti(string? codeString)
         {
-            string pattern1 = @"\b(\d{2}),(\d{2}),(\d{2})\b";
+            //string pattern1 = @"\b(\d{2}),(\d{2}),(\d{2})\b";
             //string pattern2 = @"\b(\d{2}),(\d{2})\b";
 
             if (codeString != null)
             {
                 codeString = codeString.Trim();
-                codeString = Regex.Replace(codeString, pattern1, "$1.$2.$3");
+                //codeString = Regex.Replace(codeString, pattern1, "$1.$2.$3");
                 //codeString = Regex.Replace(codeString, pattern2, "$1.$2");
                 string[] codes = codeString.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -39,6 +39,31 @@ namespace SQLWerk.Services
             return (Regex.IsMatch(code, @"\A\d{2}\.\d{2}\.\d{2}\z") ||
                 Regex.IsMatch(code, @"\A\d{2}\.\d{2}\z") ||
                 Regex.IsMatch(code, @"\A\d{2}\z"));
+        }
+
+        public static bool IsAllValid(string? codeString)
+        {
+            if (string.IsNullOrWhiteSpace(codeString)) return false;
+
+            var parts = codeString.Split(
+                new[] { ',', ';' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length == 0) return false;
+
+            int shortCount = 0;
+            foreach (var part in parts)
+            {
+                var code = part.Trim();
+
+                if (!IsValid(code)) return false;
+
+                if (code.Length == 2) shortCount++;
+            }
+
+            if (shortCount > 1) return false;
+
+            return true;
         }
     }
 }

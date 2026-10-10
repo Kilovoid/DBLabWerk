@@ -23,8 +23,13 @@ namespace SQLWerk.Services
         private static (bool, string?) IsValidExhibit(ExhibitTableRow row)
         {
             var issues = new List<string>();
-            if (string.IsNullOrEmpty(row.Codvuz)) issues.Add("Пустое поле Кода Вуза");
-            if (string.IsNullOrEmpty(row.Grnti)) issues.Add("Пустое поле ГРНТИ");
+            if (string.IsNullOrEmpty(row.Codvuz)) 
+                issues.Add("Пустое поле Кода Вуза");
+            if (string.IsNullOrEmpty(row.Grnti)) 
+                issues.Add("Пустое поле ГРНТИ");
+            if (!GrntiService.IsAllValid(row.Grnti))
+                issues.Add($"Некорректный грнти: {row.Grnti}");
+
             return issues.Count == 0
                 ? (true, null)
                 : (false, string.Join(";", issues));
@@ -34,7 +39,8 @@ namespace SQLWerk.Services
         {
             var issues = new List<string>();
 
-            if (string.IsNullOrWhiteSpace(row.Codvuz)) issues.Add("Пустое поле codvuz");
+            if (string.IsNullOrWhiteSpace(row.Codvuz)) 
+                issues.Add("Пустое поле codvuz");
             if (string.IsNullOrWhiteSpace(row.Obl) || !row.Obl.All(char.IsDigit))
                 issues.Add("Поле obl пустое или содержит не цифры");
 
@@ -58,7 +64,15 @@ namespace SQLWerk.Services
         }
         private static (bool, string?) IsValidGrnti(GrntiTableRow row)
         {
-            return (true, null);
+            var issues = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(row.Codrub))
+                issues.Add("Пустое поле ГРНТИ");
+            if (string.IsNullOrWhiteSpace(row.Rubrika))
+                issues.Add("Пустое поле рубрики");
+
+            return issues.Count == 0 ? (true, null)
+                : (false, string.Join("; ", issues));
         }
         public static bool ContainsLatin(string text)
         {

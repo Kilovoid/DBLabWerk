@@ -35,6 +35,7 @@ namespace SQLWerk.ViewModels
         private readonly IFilePicker _picker;
         private readonly IExcelReader _reader;
         private readonly InMemoryLoggerProvider _logProvider;
+        private readonly CrossValidationService _crossValidator;
 
         [ObservableProperty] private bool _hasErrors;
         [ObservableProperty] private int _warningCount;
@@ -64,7 +65,8 @@ namespace SQLWerk.ViewModels
             IFullDataRepository fullDataRepo,
             IFilePicker picker,
             IExcelReader reader,
-            InMemoryLoggerProvider loggerProvider)
+            InMemoryLoggerProvider loggerProvider,
+            CrossValidationService crossValidator)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
@@ -76,6 +78,7 @@ namespace SQLWerk.ViewModels
             _picker = picker;
             _reader = reader;
             _logProvider = loggerProvider;
+            _crossValidator = crossValidator;
 
             _logProvider.Changed += OnLogChanged;
 
@@ -269,10 +272,15 @@ namespace SQLWerk.ViewModels
                 _vuzImport.ForceImport(vuzPath!);
                 _grntiImport.ForceImport(grntiPath!);
 
+                var removed = _crossValidator.RemoveInvalidExhibits(
+                    _exhibitRepo, _vuzRepo, _grntiRepo);
+
                 ReloadFromDatabase();
 
                 SelectExhibitsCommand.Execute(null);
-                Status = $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
+                Status = removed > 0
+                    ? $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count} (удалено {removed} несопоставленных)"
+                    : $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
             }
             catch (Exception ex)
             {
