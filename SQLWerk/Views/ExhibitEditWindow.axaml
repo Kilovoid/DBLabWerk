@@ -3,37 +3,56 @@
         xmlns:vm="using:SQLWerk.ViewModels"
         x:Class="SQLWerk.Views.ExhibitEditWindow"
         x:DataType="vm:ExhibitEditViewModel"
-        Width="560" Height="640"
+        Width="560" Height="720"
         WindowStartupLocation="CenterOwner"
         Title="{Binding Title}">
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="6">
             <TextBlock Text="Код ВУЗа *"/>
-            <TextBox Text="{Binding Codvuz}"/>
+            <ComboBox ItemsSource="{x:Static vm:ExhibitEditViewModel.VuzCodes}"
+                      SelectedItem="{Binding Codvuz}"
+                      HorizontalAlignment="Stretch"/>
 
-            <TextBlock Text="Краткое наименование ВУЗа"/>
-            <TextBox Text="{Binding Z2}"/>
+            <TextBlock Text="Признак формы *"/>
+            <ComboBox ItemsSource="{x:Static vm:ExhibitEditViewModel.TypeOptions}"
+                      SelectedItem="{Binding Type}"
+                      HorizontalAlignment="Stretch"/>
 
-            <TextBlock Text="Признак формы"/>
-            <TextBox Text="{Binding Type}"/>
-
-            <TextBlock Text="Регистрационный номер"/>
+            <TextBlock Text="Регистрационный номер *"/>
             <TextBox Text="{Binding Regnumber}"/>
 
-            <TextBlock Text="Наименование проекта"/>
+            <TextBlock Text="Наименование проекта *"/>
             <TextBox Text="{Binding Subject}"/>
 
-            <TextBlock Text="Код ГРНТИ * (например: 02.61.45, 21.21.21)"/>
-            <TextBox Text="{Binding Grnti}"/>
+            <TextBlock Text="Коды ГРНТИ * (до 5). Рубрика — 2 цифры, подрубрика — XX или XX.XX"/>
+            <ItemsControl ItemsSource="{Binding GrntiEntries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:GrntiEntryVM">
+                        <Grid ColumnDefinitions="*,8,*" Margin="0,0,0,4">
+                            <ComboBox Grid.Column="0"
+                                      ItemsSource="{x:Static vm:ExhibitEditViewModel.GrntiRubrics}"
+                                      SelectedItem="{Binding Rubric}"
+                                      HorizontalAlignment="Stretch"
+                                      PlaceholderText="Рубрика"/>
+                            <MaskedTextBox Grid.Column="2"
+                                Mask="00\.99"
+                                Text="{Binding Sub, Mode=TwoWay}"
+                                HorizontalAlignment="Stretch"/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-            <TextBlock Text="Руководитель"/>
+            <TextBlock Text="Руководитель *"/>
             <TextBox Text="{Binding Bossname}"/>
 
-            <TextBlock Text="Должность/степень руководителя"/>
+            <TextBlock Text="Должность/степень руководителя *"/>
             <TextBox Text="{Binding Bosstitle}"/>
 
-            <TextBlock Text="Наличие экспоната"/>
-            <TextBox Text="{Binding Exhitype}"/>
+            <TextBlock Text="Наличие экспоната *"/>
+            <ComboBox ItemsSource="{x:Static vm:ExhibitEditViewModel.ExhibitOptions}"
+                      SelectedItem="{Binding Exhitype}"
+                      HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Выставки"/>
             <TextBox Text="{Binding Vystavki}"/>

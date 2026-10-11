@@ -127,6 +127,69 @@ namespace SQLWerk.ViewModels
             Vuzes = new ObservableCollection<VuzTableRow>(_vuzRepo.GetAll());
             Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
+            ExhibitEditViewModel.VuzCodes = Vuzes
+                .Select(v => v.Codvuz ?? "")
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Distinct()
+                .OrderBy(c => c)
+                .ToList();
+
+            ExhibitEditViewModel.GrntiRubrics = Grnti
+                .Select(g => g.Codrub ?? "")
+                .Where(c => c.Length == 2)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToList();
+
+            VuzEditViewModel.RegionOptions = Vuzes
+                .Select(v => (v.Region ?? "").Trim())
+                .Where(s => s.Length > 0)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+
+            VuzEditViewModel.StatusOptions = Vuzes
+                .Select(v => (v.Status ?? "").Trim())
+                .Where(s => s.Length > 0)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+
+            var dbObl = Vuzes
+                .Select(v => (v.Obl ?? "").Trim())
+                .Where(s => s.Length > 0)
+                .Distinct();
+
+            VuzEditViewModel.OblOptions = RegionCodes.Codes
+                .Concat(dbObl)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+
+            var map = new Dictionary<string, string>(RegionCodes.All);
+            foreach (var v in Vuzes)
+            {
+                var code = (v.Obl ?? "").Trim();
+                var name = (v.OblName ?? "").Trim();
+                if (code.Length > 0 && !map.ContainsKey(code))
+                    map[code] = name;
+            }
+            VuzEditViewModel.OblToName = map;
+
+            VuzEditViewModel.ExistingCodvuz = Vuzes
+                .Select(v => (v.Codvuz ?? "").Trim())
+                .Where(s => s.Length > 0)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            VuzEditViewModel.ExistingZ1 = Vuzes
+                .Select(v => (v.Z1 ?? "").Trim())
+                .Where(s => s.Length > 0)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            VuzEditViewModel.ExistingZ1Full = Vuzes
+                .Select(v => (v.Z1Full ?? "").Trim())
+                .Where(s => s.Length > 0)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             //SelectExhibitsCommand.Execute(null);
         }
         private void LoadAll() //depricated for now

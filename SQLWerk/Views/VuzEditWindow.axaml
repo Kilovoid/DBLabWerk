@@ -3,13 +3,14 @@
         xmlns:vm="using:SQLWerk.ViewModels"
         x:Class="SQLWerk.Views.VuzEditWindow"
         x:DataType="vm:VuzEditViewModel"
-        Width="560" Height="620"
+        Width="560" Height="680"
         WindowStartupLocation="CenterOwner"
         Title="{Binding Title}">
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="6">
             <TextBlock Text="Код ВУЗа *"/>
-            <TextBox Text="{Binding Codvuz}"/>
+            <TextBox Text="{Binding Codvuz}"
+                     IsReadOnly="{Binding IsEditMode}"/>
 
             <TextBlock Text="Наименование *"/>
             <TextBox Text="{Binding Z1}"/>
@@ -21,19 +22,25 @@
             <TextBox Text="{Binding Z2}"/>
 
             <TextBlock Text="Федеральный округ *"/>
-            <TextBox Text="{Binding Region}"/>
+            <ComboBox ItemsSource="{x:Static vm:VuzEditViewModel.RegionOptions}"
+                      SelectedItem="{Binding Region}"
+                      HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Город *"/>
             <TextBox Text="{Binding City}"/>
 
             <TextBlock Text="Тип учреждения *"/>
-            <TextBox Text="{Binding Status}"/>
+            <ComboBox ItemsSource="{x:Static vm:VuzEditViewModel.StatusOptions}"
+                      SelectedItem="{Binding Status}"
+                      HorizontalAlignment="Stretch"/>
 
-            <TextBlock Text="Код региона (только цифры) *"/>
-            <TextBox Text="{Binding Obl}"/>
+            <TextBlock Text="Код региона *"/>
+            <ComboBox ItemsSource="{x:Static vm:VuzEditViewModel.OblOptions}"
+                      SelectedItem="{Binding Obl}"
+                      HorizontalAlignment="Stretch"/>
 
-            <TextBlock Text="Регион *"/>
-            <TextBox Text="{Binding OblName}"/>
+            <TextBlock Text="Регион (заполняется автоматически)"/>
+            <TextBox Text="{Binding OblName}" IsReadOnly="True"/>
 
             <TextBlock Text="Статус"/>
             <TextBox Text="{Binding GrVed}"/>
