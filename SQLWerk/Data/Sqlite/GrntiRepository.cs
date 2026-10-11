@@ -86,6 +86,39 @@ namespace SQLWerk.Data.Sqlite
             tx.Commit();
         }
 
+        public void Add(GrntiTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "INSERT INTO Grnti (Codrub, Rubrika) VALUES ($c, $r);";
+            cmd.AddParam("$c", row.Codrub);
+            cmd.AddParam("$r", row.Rubrika);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Update(GrntiTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE Grnti SET Codrub=$c, Rubrika=$r WHERE Id=$id;";
+            cmd.AddParam("$c", row.Codrub);
+            cmd.AddParam("$r", row.Rubrika);
+            cmd.AddParam("$id", row.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Delete(long id)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Grnti WHERE Id=$id;";
+            cmd.AddParam("$id", id);
+            cmd.ExecuteNonQuery();
+        }
+
         public void Clear()
         {
             using var conn = _factory.Create();

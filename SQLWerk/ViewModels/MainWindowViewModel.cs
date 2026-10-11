@@ -12,8 +12,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace SQLWerk.ViewModels
@@ -54,7 +54,10 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private bool _showAll;
 
         public event EventHandler? ShowLogRequested;
-
+        public Func<GrntiTableRow?, Task<GrntiTableRow?>>? GrntiEditHandler { get; set; }
+        public Func<string, string, Task<bool>>? ConfirmHandler { get; set; }
+        public Func<VuzTableRow?, Task<VuzTableRow?>>? VuzEditHandler { get; set; }
+        public Func<ExhibitTableRow?, Task<ExhibitTableRow?>>? ExhibitEditHandler { get; set; }
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
@@ -106,12 +109,13 @@ namespace SQLWerk.ViewModels
             if (haveData)
             {
                 ReloadFromDatabase();
+                SelectExhibitsCommand.Execute(null);
                 Status = "Данные загружены из БД";
             }
             else
             {
                 Status = "Выберите файлы для импорта таблиц";
-            } 
+            }
         }
 
         private void ReloadFromDatabase()
@@ -121,7 +125,7 @@ namespace SQLWerk.ViewModels
             Vuzes = new ObservableCollection<VuzTableRow>(_vuzRepo.GetAll());
             Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
-            SelectExhibitsCommand.Execute(null);
+            //SelectExhibitsCommand.Execute(null);
         }
         private void LoadAll() //depricated for now
         {
@@ -190,7 +194,7 @@ namespace SQLWerk.ViewModels
         }
 
         [RelayCommand]
-        
+
         private async Task LoadAsync()
         {
             _logProvider.Clear();
@@ -276,10 +280,10 @@ namespace SQLWerk.ViewModels
                     _exhibitRepo, _vuzRepo, _grntiRepo);
 
                 ReloadFromDatabase();
-
                 SelectExhibitsCommand.Execute(null);
+
                 Status = removed > 0
-                    ? $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count} (удалено {removed} несопоставленных)"
+                    ? $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count} (не загружено {removed} несопоставленных)"
                     : $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
             }
             catch (Exception ex)
@@ -287,13 +291,145 @@ namespace SQLWerk.ViewModels
                 Status = "Ошибка импорта: " + ex.Message;
             }
         }
-    }
 
-
-        public sealed record GrntiRowVm(int rowNumber, string Original, string Formatted, bool IsValid)
+        [RelayCommand]
+        private async Task AddGrntiAsync()
         {
-            public string Status => IsValid ? "OK" : "Error";
+            if (GrntiEditHandler is null) return;
 
-            public IBrush RowBackGround => IsValid ? Brushes.Transparent : Brushes.Red;
+            var result = await GrntiEditHandler(null);
+            if (result is null) return;
+
+            _grntiRepo.Add(result);
+            ReloadFromDatabase();
+            SelectGrntiCommand.Execute(null);
+            Status = $"Рубрика добавлена: {result.Codrub} — {result.Rubrika}";
+        }
+
+        [RelayCommand]
+        private async Task EditGrntiAsync(GrntiTableRow? row)
+        {
+            if (GrntiEditHandler is null || row is null) return;
+
+            var result = await GrntiEditHandler(row);
+            if (result is null) return;
+
+            _grntiRepo.Update(result);
+            ReloadFromDatabase();
+            SelectGrntiCommand.Execute(null);
+            Status = $"Рубрика изменена: {result.Codrub} — {result.Rubrika}";
+        }
+
+        [RelayCommand]
+        private async Task DeleteGrntiAsync(GrntiTableRow? row)
+        {
+            if (ConfirmHandler is null || row is null) return;
+
+            var ok = await ConfirmHandler(
+                "Удаление рубрики",
+                $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\nДействие необратимо.");
+            if (!ok) return;
+
+            _grntiRepo.Delete(row.Id);
+            ReloadFromDatabase();
+            SelectGrntiCommand.Execute(null);
+            Status = $"Рубрика удалена: {row.Codrub} — {row.Rubrika}";
+        }
+
+        [RelayCommand]
+        private async Task AddVuzAsync()
+        {
+            if (VuzEditHandler is null) return;
+            var result = await VuzEditHandler(null);
+            if (result is null) return;
+
+            _vuzRepo.Add(result);
+            ReloadFromDatabase();
+            SelectVuzCommand.Execute(null);
+            Status = $"ВУЗ добавлен: {result.Codvuz}";
+        }
+
+        [RelayCommand]
+        private async Task EditVuzAsync(VuzTableRow? row)
+        {
+            if (VuzEditHandler is null || row is null) return;
+            var result = await VuzEditHandler(row);
+            if (result is null) return;
+
+            _vuzRepo.Update(result);
+            ReloadFromDatabase();
+            SelectVuzCommand.Execute(null);
+            Status = $"ВУЗ изменён: {result.Codvuz}";
+        }
+
+        [RelayCommand]
+        private async Task DeleteVuzAsync(VuzTableRow? row)
+        {
+            if (ConfirmHandler is null || row is null) return;
+
+            var ok = await ConfirmHandler(
+                "Удаление ВУЗа",
+                $"Удалить ВУЗ «{row.Codvuz} — {row.Z1}»?\n" +
+                $"Все связанные выставки этого ВУЗа также будут удалены.");
+            if (!ok) return;
+
+            _exhibitRepo.DeleteByCodvuz(row.Codvuz ?? "");
+            _vuzRepo.Delete(row.Id);
+
+            ReloadFromDatabase();
+            SelectVuzCommand.Execute(null);
+            Status = $"ВУЗ удалён: {row.Codvuz}";
+        }
+
+        // ---------- Выставки ----------
+        [RelayCommand]
+        private async Task AddExhibitAsync()
+        {
+            if (ExhibitEditHandler is null) return;
+            var result = await ExhibitEditHandler(null);
+            if (result is null) return;
+
+            _exhibitRepo.Add(result);
+            ReloadFromDatabase();
+            SelectExhibitsCommand.Execute(null);
+            Status = $"Выставка добавлена (Id={result.Id})";
+        }
+
+        [RelayCommand]
+        private async Task EditExhibitAsync(ExhibitTableRow? row)
+        {
+            if (ExhibitEditHandler is null || row is null) return;
+            var result = await ExhibitEditHandler(row);
+            if (result is null) return;
+
+            _exhibitRepo.Update(result);
+            ReloadFromDatabase();
+            SelectExhibitsCommand.Execute(null);
+            Status = $"Выставка изменена (Id={result.Id})";
+        }
+
+        [RelayCommand]
+        private async Task DeleteExhibitAsync(ExhibitTableRow? row)
+        {
+            if (ConfirmHandler is null || row is null) return;
+
+            var ok = await ConfirmHandler(
+                "Удаление выставки",
+                $"Удалить выставку Id={row.Id} «{row.Subject}»?\nДействие необратимо.");
+            if (!ok) return;
+
+            _exhibitRepo.Delete(row.Id);
+            ReloadFromDatabase();
+            SelectExhibitsCommand.Execute(null);
+            Status = $"Выставка удалена (Id={row.Id})";
+        }
     }
+}
+
+
+public sealed record GrntiRowVm(int rowNumber, string Original, string Formatted, bool IsValid)
+{
+    public string Status => IsValid ? "OK" : "Error";
+
+    public IBrush RowBackGround => IsValid ? Brushes.Transparent : Brushes.Red;
 }

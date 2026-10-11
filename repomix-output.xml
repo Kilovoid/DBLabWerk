@@ -67,6 +67,7 @@ SQLWerk/
     GrntiTableRow.cs
     VuzTableRow.cs
   Services/
+    CrossValidationService.cs
     DataBaseMaintenanceService.cs
     ExcelReader.cs
     FilePicker.cs
@@ -78,15 +79,27 @@ SQLWerk/
   Styles/
     DataGridStyles.axaml
   ViewModels/
+    ConfirmViewModel.cs
+    ExhibitEditViewModel.cs
+    GrntiEditViewModel.cs
     LogViewModel.cs
     MainViewModel.cs
     MainWindowViewModel.cs
     ViewModelBase.cs
+    VuzEditViewModel.cs
   Views/
+    ConfirmWindow.axaml
+    ConfirmWindow.axaml.cs
+    ExhibitEditWindow.axaml
+    ExhibitEditWindow.axaml.cs
+    GrntiEditWindow.axaml
+    GrntiEditWindow.axaml.cs
     LogWindow.axaml
     LogWindow.axaml.cs
     MainWindow.axaml
     MainWindow.axaml.cs
+    VuzEditWindow.axaml
+    VuzEditWindow.axaml.cs
   App.axaml
   App.axaml.cs
   app.manifest
@@ -106,164 +119,470 @@ SQLWerk.slnx
 <files>
 This section contains the contents of the repository's files.
 
-<file path="SQLWerk/Services/InMemoryLoggerProvider.cs">
-using Microsoft.Extensions.Logging;
+<file path="SQLWerk/ViewModels/ConfirmViewModel.cs">
 using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace SQLWerk.Services;
-
-public sealed record LogEntry(DateTime Time, LogLevel Level, string Message,
-                              string File, int Row, string Reason);
-
-public sealed class InMemoryLoggerProvider : ILoggerProvider
-{
-    private readonly List<LogEntry> _entries = new();
-    private readonly object _lock = new();
-
-    public IReadOnlyList<LogEntry> Entries
-    {
-        get { lock (_lock) return _entries.ToList(); }
-    }
-
-    public bool HasWarnings
-    {
-        get { lock (_lock) return _entries.Any(e => e.Level >= LogLevel.Warning); }
-    }
-
-    public event EventHandler? Changed;
-
-    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
-
-    public void Clear()
-    {
-        lock (_lock) _entries.Clear();
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void Dispose() { }
-
-    private void Add(LogEntry entry)
-    {
-        lock (_lock) _entries.Add(entry);
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    private sealed class Logger : ILogger
-    {
-        private readonly InMemoryLoggerProvider _owner;
-        private readonly string _category;
-
-        public Logger(InMemoryLoggerProvider owner, string category)
-        {
-            _owner = owner;
-            _category = category;
-        }
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
-
-        public void Log<TState>(LogLevel level, EventId id, TState state,
-            Exception? ex, Func<TState, Exception?, string> fmt)
-        {
-            if (!IsEnabled(level)) return;
-
-            string file = "", reason = "";
-            int row = 0;
-
-            if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
-            {
-                foreach (var p in kv)
-                {
-                    switch (p.Key)
-                    {
-                        case "File": file = p.Value?.ToString() ?? ""; break;
-                        case "Row": int.TryParse(p.Value?.ToString(), out row); break;
-                        case "Reason": reason = p.Value?.ToString() ?? ""; break;
-                    }
-                }
-            }
-
-            _owner.Add(new LogEntry(DateTime.Now, level, fmt(state, ex), file, row, reason));
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/ViewModels/LogViewModel.cs">
-using System;
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using SQLWerk.Services;
 
 namespace SQLWerk.ViewModels;
 
-public partial class LogViewModel : ObservableObject
+public partial class ConfirmViewModel : ObservableObject
 {
-    private readonly InMemoryLoggerProvider _provider;
+    public string Title { get; }
+    public string Message { get; }
+    public bool Result { get; private set; }
 
-    [ObservableProperty] private ObservableCollection<LogEntry> _entries = new();
-    [ObservableProperty] private string _summary = "";
+    public event EventHandler? CloseRequested;
 
-    public LogViewModel(InMemoryLoggerProvider provider)
+    public ConfirmViewModel(string title, string message)
     {
-        _provider = provider;
-        _provider.Changed += (_, _) => Refresh();
-        Refresh();
+        Title = title;
+        Message = message;
     }
 
-    private void Refresh()
-    {
-        Entries = new ObservableCollection<LogEntry>(_provider.Entries);
-        Summary = $"Записей: {Entries.Count}";
-    }
-
-    [RelayCommand]
-    private void Clear() => _provider.Clear();
+    [RelayCommand] private void Yes() { Result = true; CloseRequested?.Invoke(this, EventArgs.Empty); }
+    [RelayCommand] private void No() { Result = false; CloseRequested?.Invoke(this, EventArgs.Empty); }
 }
 </file>
 
-<file path="SQLWerk/Views/LogWindow.axaml">
+<file path="SQLWerk/ViewModels/ExhibitEditViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SQLWerk.Models;
+using SQLWerk.Services;
+using System;
+using System.Security.Cryptography;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+
+namespace SQLWerk.ViewModels;
+
+public partial class ExhibitEditViewModel : ObservableObject
+{
+    [ObservableProperty] private string _title = "Добавление выставки";
+    [ObservableProperty] private string _error = "";
+
+    [ObservableProperty] private string _codvuz = "";
+    [ObservableProperty] private string _z2 = "";
+    [ObservableProperty] private string _type = "";
+    [ObservableProperty] private string _regnumber = "";
+    [ObservableProperty] private string _subject = "";
+    [ObservableProperty] private string _grnti = "";
+    [ObservableProperty] private string _bossname = "";
+    [ObservableProperty] private string _bosstitle = "";
+    [ObservableProperty] private string _exhitype = "";
+    [ObservableProperty] private string _vystavki = "";
+    [ObservableProperty] private string _exponat = "";
+
+    public long Id { get; private set; }
+    public ExhibitTableRow? Result { get; private set; }
+    public event EventHandler? CloseRequested;
+
+    public ExhibitEditViewModel() { }
+
+    public ExhibitEditViewModel(ExhibitTableRow row)
+    {
+        _title = "Изменение выставки";
+        Id = row.Id;
+        _codvuz = row.Codvuz ?? "";
+        _z2 = row.Z2 ?? "";
+        _type = row.Type ?? "";
+        _regnumber = row.Regnumber ?? "";
+        _subject = row.Subject ?? "";
+        _grnti = row.Grnti ?? "";
+        _bossname = row.Bossname ?? "";
+        _bosstitle = row.Bosstitle ?? "";
+        _exhitype = row.Exhitype ?? "";
+        _vystavki = row.Vystavki ?? "";
+        _exponat = row.Exponat ?? "";
+    }
+
+    [RelayCommand]
+    private void Save()
+    {
+        var row = new ExhibitTableRow
+        {
+            Id = Id,
+            Codvuz = Codvuz.Trim(),
+            Z2 = Z2.Trim(),
+            Type = Type.Trim(),
+            Regnumber = Regnumber.Trim(),
+            Subject = Subject.Trim(),
+            Grnti = GrntiService.ParseGrnti(Grnti),
+            Bossname = Bossname.Trim(),
+            Bosstitle = Bosstitle.Trim(),
+            Exhitype = Exhitype.Trim(),
+            Vystavki = Vystavki.Trim(),
+            Exponat = Exponat.Trim(),
+        };
+
+        var (ok, reason) = ValidationService.Validate(row);
+        if (!ok) { Error = reason ?? "Ошибка валидации"; return; }
+
+        Result = row;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        Result = null;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+}
+</file>
+
+<file path="SQLWerk/ViewModels/GrntiEditViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+
+namespace SQLWerk.ViewModels;
+
+public partial class GrntiEditViewModel : ObservableObject
+{
+    [ObservableProperty] private string _title = "Добавление рубрики";
+    [ObservableProperty] private string _codrub = "";
+    [ObservableProperty] private string _rubrika = "";
+    [ObservableProperty] private string _error = "";
+
+    public long Id { get; private set; }
+
+    
+    public GrntiTableRow? Result { get; private set; }
+
+    public event EventHandler? CloseRequested;
+
+    public GrntiEditViewModel() {  }
+
+    public GrntiEditViewModel(GrntiTableRow row)
+    {
+        _title = "Изменение рубрики";
+        Id = row.Id;
+        _codrub = row.Codrub ?? "";
+        _rubrika = row.Rubrika ?? "";
+    }
+
+    [RelayCommand]
+    private void Save()
+    {
+        var issues = new List<string>();
+        if (string.IsNullOrWhiteSpace(Codrub)) issues.Add("Код рубрики обязателен");
+        if (string.IsNullOrWhiteSpace(Rubrika)) issues.Add("Наименование рубрики обязательно");
+
+        if (issues.Count > 0)
+        {
+            Error = string.Join("; ", issues);
+            return;
+        }
+
+        Result = new GrntiTableRow
+        {
+            Id = Id,
+            Codrub = Codrub.Trim(),
+            Rubrika = Rubrika.Trim()
+        };
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        Result = null;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+}
+</file>
+
+<file path="SQLWerk/ViewModels/VuzEditViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SkiaSharp;
+using SQLWerk.Models;
+using SQLWerk.Services;
+using System;
+using System.Net.NetworkInformation;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+
+namespace SQLWerk.ViewModels;
+
+public partial class VuzEditViewModel : ObservableObject
+{
+    [ObservableProperty] private string _title = "Добавление ВУЗа";
+    [ObservableProperty] private string _error = "";
+
+    [ObservableProperty] private string _codvuz = "";
+    [ObservableProperty] private string _z1 = "";
+    [ObservableProperty] private string _z1Full = "";
+    [ObservableProperty] private string _z2 = "";
+    [ObservableProperty] private string _region = "";
+    [ObservableProperty] private string _city = "";
+    [ObservableProperty] private string _status = "";
+    [ObservableProperty] private string _obl = "";
+    [ObservableProperty] private string _oblName = "";
+    [ObservableProperty] private string _grVed = "";
+    [ObservableProperty] private string _prof = "";
+
+    public long Id { get; private set; }
+    public VuzTableRow? Result { get; private set; }
+    public event EventHandler? CloseRequested;
+
+    public VuzEditViewModel() { }
+
+    public VuzEditViewModel(VuzTableRow row)
+    {
+        _title = "Изменение ВУЗа";
+        Id = row.Id;
+        _codvuz = row.Codvuz ?? "";
+        _z1 = row.Z1 ?? "";
+        _z1Full = row.Z1Full ?? "";
+        _z2 = row.Z2 ?? "";
+        _region = row.Region ?? "";
+        _city = row.City ?? "";
+        _status = row.Status ?? "";
+        _obl = row.Obl ?? "";
+        _oblName = row.OblName ?? "";
+        _grVed = row.GrVed ?? "";
+        _prof = row.Prof ?? "";
+    }
+
+    [RelayCommand]
+    private void Save()
+    {
+        var row = new VuzTableRow
+        {
+            Id = Id,
+            Codvuz = Codvuz.Trim(),
+            Z1 = Z1.Trim(),
+            Z1Full = Z1Full.Trim(),
+            Z2 = Z2.Trim(),
+            Region = Region.Trim(),
+            City = City.Trim(),
+            Status = Status.Trim(),
+            Obl = Obl.Trim(),
+            OblName = OblName.Trim(),
+            GrVed = string.IsNullOrWhiteSpace(GrVed) ? null : GrVed.Trim(),
+            Prof = string.IsNullOrWhiteSpace(Prof) ? null : Prof.Trim(),
+        };
+
+        var (ok, reason) = ValidationService.Validate(row);
+        if (!ok) { Error = reason ?? "Ошибка валидации"; return; }
+
+        Result = row;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        Result = null;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+}
+</file>
+
+<file path="SQLWerk/Views/ConfirmWindow.axaml">
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SQLWerk.ViewModels"
-        x:Class="SQLWerk.Views.LogWindow"
-        x:DataType="vm:LogViewModel"
-        Width="900" Height="520"
-        Title="Журнал">
-    <DockPanel>
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="8">
-            <Button Content="Очистить" Command="{Binding ClearCommand}"/>
-            <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        x:Class="SQLWerk.Views.ConfirmWindow"
+        x:DataType="vm:ConfirmViewModel"
+        Width="400" Height="180"
+        WindowStartupLocation="CenterOwner"
+        Title="{Binding Title}">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    Spacing="8" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Да"  Command="{Binding YesCommand}"/>
+            <Button Content="Нет" Command="{Binding NoCommand}"/>
         </StackPanel>
-        <DataGrid ItemsSource="{Binding Entries}" AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Время"
-                    Binding="{Binding Time, StringFormat='{}{0:HH:mm:ss}'}" Width="90"/>
-                <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="90"/>
-                <DataGridTextColumn Header="Файл" Binding="{Binding File}" Width="180"/>
-                <DataGridTextColumn Header="Строка" Binding="{Binding Row}" Width="70"/>
-                <DataGridTextColumn Header="Причина" Binding="{Binding Reason}" Width="*"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap"/>
     </DockPanel>
 </Window>
 </file>
 
-<file path="SQLWerk/Views/LogWindow.axaml.cs">
+<file path="SQLWerk/Views/ConfirmWindow.axaml.cs">
 using Avalonia.Controls;
 
 namespace SQLWerk.Views;
 
-public partial class LogWindow : Window
+public partial class ConfirmWindow : Window
 {
-    public LogWindow()
-    {
-        InitializeComponent();
-    }
+    public ConfirmWindow() => InitializeComponent();
+}
+</file>
+
+<file path="SQLWerk/Views/ExhibitEditWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.ExhibitEditWindow"
+        x:DataType="vm:ExhibitEditViewModel"
+        Width="560" Height="640"
+        WindowStartupLocation="CenterOwner"
+        Title="{Binding Title}">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="6">
+            <TextBlock Text="Код ВУЗа *"/>
+            <TextBox Text="{Binding Codvuz}"/>
+
+            <TextBlock Text="Краткое наименование ВУЗа"/>
+            <TextBox Text="{Binding Z2}"/>
+
+            <TextBlock Text="Признак формы"/>
+            <TextBox Text="{Binding Type}"/>
+
+            <TextBlock Text="Регистрационный номер"/>
+            <TextBox Text="{Binding Regnumber}"/>
+
+            <TextBlock Text="Наименование проекта"/>
+            <TextBox Text="{Binding Subject}"/>
+
+            <TextBlock Text="Код ГРНТИ * (например: 02.61.45, 21.21.21)"/>
+            <TextBox Text="{Binding Grnti}"/>
+
+            <TextBlock Text="Руководитель"/>
+            <TextBox Text="{Binding Bossname}"/>
+
+            <TextBlock Text="Должность/степень руководителя"/>
+            <TextBox Text="{Binding Bosstitle}"/>
+
+            <TextBlock Text="Наличие экспоната"/>
+            <TextBox Text="{Binding Exhitype}"/>
+
+            <TextBlock Text="Выставки"/>
+            <TextBox Text="{Binding Vystavki}"/>
+
+            <TextBlock Text="Название экспоната"/>
+            <TextBox Text="{Binding Exponat}"/>
+
+            <TextBlock Text="{Binding Error}" Foreground="Red" TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Content="Сохранить" Command="{Binding SaveCommand}"/>
+                <Button Content="Отмена"    Command="{Binding CancelCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
+</file>
+
+<file path="SQLWerk/Views/ExhibitEditWindow.axaml.cs">
+using Avalonia.Controls;
+
+namespace SQLWerk.Views;
+
+public partial class ExhibitEditWindow : Window
+{
+    public ExhibitEditWindow() => InitializeComponent();
+}
+</file>
+
+<file path="SQLWerk/Views/GrntiEditWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.GrntiEditWindow"
+        x:DataType="vm:GrntiEditViewModel"
+        Width="420" Height="240"
+        WindowStartupLocation="CenterOwner"
+        Title="{Binding Title}">
+    <StackPanel Margin="16" Spacing="8">
+        <TextBlock Text="Код рубрики *"/>
+        <TextBox Text="{Binding Codrub}"/>
+
+        <TextBlock Text="Наименование рубрики *"/>
+        <TextBox Text="{Binding Rubrika}"/>
+
+        <TextBlock Text="{Binding Error}" Foreground="Red" TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="Сохранить" Command="{Binding SaveCommand}"/>
+            <Button Content="Отмена"    Command="{Binding CancelCommand}"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
+</file>
+
+<file path="SQLWerk/Views/GrntiEditWindow.axaml.cs">
+using Avalonia.Controls;
+
+namespace SQLWerk.Views;
+
+public partial class GrntiEditWindow : Window
+{
+    public GrntiEditWindow() => InitializeComponent();
+}
+</file>
+
+<file path="SQLWerk/Views/VuzEditWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.VuzEditWindow"
+        x:DataType="vm:VuzEditViewModel"
+        Width="560" Height="620"
+        WindowStartupLocation="CenterOwner"
+        Title="{Binding Title}">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="6">
+            <TextBlock Text="Код ВУЗа *"/>
+            <TextBox Text="{Binding Codvuz}"/>
+
+            <TextBlock Text="Наименование *"/>
+            <TextBox Text="{Binding Z1}"/>
+
+            <TextBlock Text="Полное наименование *"/>
+            <TextBox Text="{Binding Z1Full}"/>
+
+            <TextBlock Text="Краткое наименование *"/>
+            <TextBox Text="{Binding Z2}"/>
+
+            <TextBlock Text="Федеральный округ *"/>
+            <TextBox Text="{Binding Region}"/>
+
+            <TextBlock Text="Город *"/>
+            <TextBox Text="{Binding City}"/>
+
+            <TextBlock Text="Тип учреждения *"/>
+            <TextBox Text="{Binding Status}"/>
+
+            <TextBlock Text="Код региона (только цифры) *"/>
+            <TextBox Text="{Binding Obl}"/>
+
+            <TextBlock Text="Регион *"/>
+            <TextBox Text="{Binding OblName}"/>
+
+            <TextBlock Text="Статус"/>
+            <TextBox Text="{Binding GrVed}"/>
+
+            <TextBlock Text="Специализация"/>
+            <TextBox Text="{Binding Prof}"/>
+
+            <TextBlock Text="{Binding Error}" Foreground="Red" TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Content="Сохранить" Command="{Binding SaveCommand}"/>
+                <Button Content="Отмена"    Command="{Binding CancelCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
+</file>
+
+<file path="SQLWerk/Views/VuzEditWindow.axaml.cs">
+using Avalonia.Controls;
+
+namespace SQLWerk.Views;
+
+public partial class VuzEditWindow : Window
+{
+    public VuzEditWindow() => InitializeComponent();
 }
 </file>
 
@@ -397,6 +716,110 @@ namespace SQLWerk.Data.Sqlite
             _cs = $"Data Source={Path.GetFullPath(dbPath)}";
 
         public SqliteConnection Create() => new SqliteConnection(_cs);
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/CrossValidationService.cs">
+using Microsoft.Extensions.Logging;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SQLWerk.Services
+{
+    public class CrossValidationService
+    {
+        private readonly ILogger<CrossValidationService> _logger;
+
+        public CrossValidationService(ILogger<CrossValidationService> logger) => _logger = logger;
+
+        public int RemoveInvalidExhibits(
+            IExhibitRepository exhibitRepo,
+            IVuzRepository vuzRepo,
+            IGrntiRepository grntiRepo)
+        {
+            var validCodvuz = vuzRepo.GetAll()
+                .Where(v => !string.IsNullOrWhiteSpace(v.Codvuz)
+                         && !string.IsNullOrWhiteSpace(v.Z1Full))
+                .Select(v => v.Codvuz!.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var validRubrics = grntiRepo.GetAll()
+                .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
+                .Select(g => ExtractRubric(g.Codrub!))
+                .Where(r => r.Length == 2)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var exhibits = exhibitRepo.GetAll();
+            var kept = new List<ExhibitTableRow>(exhibits.Count);
+            int removed = 0;
+
+            foreach (var e in exhibits)
+            {
+                var issues = new List<string>();
+
+                var cod = e.Codvuz?.Trim() ?? "";
+                if (cod.Length == 0)
+                    issues.Add("пустой код ВУЗа");
+                else if (!validCodvuz.Contains(cod))
+                    issues.Add($"ВУЗ '{cod}' не найден или без полного наименования");
+
+                var missing = GetMissingRubrics(e.Grnti, validRubrics);
+                if (missing.Count > 0)
+                    issues.Add($"рубрики ГРНТИ не найдены: {string.Join(", ", missing)}");
+
+                if (issues.Count == 0)
+                {
+                    kept.Add(e);
+                }
+                else
+                {
+                    removed++;
+                    _logger.LogWarning(
+                        "Выставка Id={Id} не загружена. Причина: {Reason}",
+                        e.Id, string.Join("; ", issues));
+                }
+            }
+
+            if (removed > 0)
+            {
+                exhibitRepo.Clear();
+                exhibitRepo.SaveAll(kept);
+            }
+
+            return removed;
+        }
+
+        private static string ExtractRubric(string code)
+        {
+            var trimmed = code.Trim();
+            return trimmed.Length >= 2 ? trimmed.Substring(0, 2) : trimmed;
+        }
+
+        private static List<string> GetMissingRubrics(string? grntiString, HashSet<string> valid)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(grntiString)) return result;
+
+            var parts = grntiString.Split(
+                new[] { ',', ';' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var part in parts)
+            {
+                var rubric = ExtractRubric(part);
+                if (rubric.Length == 2
+                    && !valid.Contains(rubric)
+                    && !result.Contains(rubric))
+                {
+                    result.Add(rubric);
+                }
+            }
+            return result;
+        }
     }
 }
 </file>
@@ -564,81 +987,87 @@ namespace SQLWerk.Services
 }
 </file>
 
-<file path="SQLWerk/Services/ValidationService.cs">
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Models;
+<file path="SQLWerk/Services/InMemoryLoggerProvider.cs">
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
-namespace SQLWerk.Services
+namespace SQLWerk.Services;
+
+public sealed record LogEntry(DateTime Time, LogLevel Level, string Message,
+                              string File, int Row, string Reason);
+
+public sealed class InMemoryLoggerProvider : ILoggerProvider
 {
-    internal static class ValidationService
+    private readonly List<LogEntry> _entries = new();
+    private readonly object _lock = new();
+
+    public IReadOnlyList<LogEntry> Entries
     {
-        public static (bool IsValid, string? Reason) Validate<T>(T row) where T : ITableRow
+        get { lock (_lock) return _entries.ToList(); }
+    }
+
+    public bool HasWarnings
+    {
+        get { lock (_lock) return _entries.Any(e => e.Level >= LogLevel.Warning); }
+    }
+
+    public event EventHandler? Changed;
+
+    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
+
+    public void Clear()
+    {
+        lock (_lock) _entries.Clear();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Dispose() { }
+
+    private void Add(LogEntry entry)
+    {
+        lock (_lock) _entries.Add(entry);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private sealed class Logger : ILogger
+    {
+        private readonly InMemoryLoggerProvider _owner;
+        private readonly string _category;
+
+        public Logger(InMemoryLoggerProvider owner, string category)
         {
-            return row switch
-            {
-                ExhibitTableRow e => IsValidExhibit(e),
-
-                VuzTableRow v => IsValidVuz(v),
-
-                GrntiTableRow g => IsValidGrnti(g)
-            };
+            _owner = owner;
+            _category = category;
         }
-        private static (bool, string?) IsValidExhibit(ExhibitTableRow row)
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+
+        public void Log<TState>(LogLevel level, EventId id, TState state,
+            Exception? ex, Func<TState, Exception?, string> fmt)
         {
-            var issues = new List<string>();
-            if (string.IsNullOrEmpty(row.Codvuz)) issues.Add("Пустое поле Кода Вуза");
-            if (string.IsNullOrEmpty(row.Grnti)) issues.Add("Пустое поле ГРНТИ");
-            return issues.Count == 0
-                ? (true, null)
-                : (false, string.Join(";", issues));
-        }
+            if (!IsEnabled(level)) return;
 
-        private static (bool, string?) IsValidVuz(VuzTableRow row)
-        {
-            var issues = new List<string>();
+            string file = "", reason = "";
+            int row = 0;
 
-            if (string.IsNullOrWhiteSpace(row.Codvuz)) issues.Add("Пустое поле codvuz");
-            if (string.IsNullOrWhiteSpace(row.Obl) || !row.Obl.All(char.IsDigit))
-                issues.Add("Поле obl пустое или содержит не цифры");
-
-            void CheckRu(string? val, string name)
+            if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
             {
-                if (string.IsNullOrWhiteSpace(val)) issues.Add($"Пустое поле {name}");
-                else if (ContainsLatin(val)) issues.Add($"Поле {name} содержит латиницу");
+                foreach (var p in kv)
+                {
+                    switch (p.Key)
+                    {
+                        case "File": file = p.Value?.ToString() ?? ""; break;
+                        case "Row": int.TryParse(p.Value?.ToString(), out row); break;
+                        case "Reason": reason = p.Value?.ToString() ?? ""; break;
+                    }
+                }
             }
 
-            CheckRu(row.Z1, "z1");
-            CheckRu(row.Z1Full, "z1full");
-            CheckRu(row.Z2, "z2");
-            CheckRu(row.Region, "region");
-            CheckRu(row.City, "city");
-            CheckRu(row.Status, "status");
-            CheckRu(row.OblName, "oblname");
-
-            return issues.Count == 0
-                ? (true, null)
-                : (false, string.Join("; ", issues));
-        }
-        private static (bool, string?) IsValidGrnti(GrntiTableRow row)
-        {
-            return (true, null);
-        }
-        public static bool ContainsLatin(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-                return false;
-
-            foreach (char c in text)
-            {
-                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
-                    return true;
-            }
-
-            return false;
+            _owner.Add(new LogEntry(DateTime.Now, level, fmt(state, ex), file, row, reason));
         }
     }
 }
@@ -705,6 +1134,20 @@ namespace SQLWerk.Services
     </Style>
 
 </Styles>
+</file>
+
+<file path="SQLWerk/Views/LogWindow.axaml.cs">
+using Avalonia.Controls;
+
+namespace SQLWerk.Views;
+
+public partial class LogWindow : Window
+{
+    public LogWindow()
+    {
+        InitializeComponent();
+    }
+}
 </file>
 
 <file path="SQLWerk/repomix-output.xml">
@@ -1955,13 +2398,29 @@ namespace SQLWerk.Data.Abstractions
     }
 
 
-    public interface IExhibitRepository : IRepository<ExhibitTableRow>{}
+    public interface IExhibitRepository : IRepository<ExhibitTableRow>
+    {
+        void Add(ExhibitTableRow row);
+        void Update(ExhibitTableRow row);
+        void Delete(long id);
+        void DeleteByCodvuz(string codvuz);
+    }
 
 
-    public interface IVuzRepository : IRepository<VuzTableRow>{}
+    public interface IVuzRepository : IRepository<VuzTableRow>
+    {
+        void Add(VuzTableRow row);
+        void Update(VuzTableRow row);
+        void Delete(long id);
+    }
 
 
-    public interface IGrntiRepository : IRepository<GrntiTableRow>{}
+    public interface IGrntiRepository : IRepository<GrntiTableRow>
+    {
+        void Add(GrntiTableRow row);
+        void Update(GrntiTableRow row);
+        void Delete(long id);
+    }
 }
 </file>
 
@@ -2070,6 +2529,39 @@ namespace SQLWerk.Data.Sqlite
                 cmd.ExecuteNonQuery();
             }
             tx.Commit();
+        }
+
+        public void Add(GrntiTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "INSERT INTO Grnti (Codrub, Rubrika) VALUES ($c, $r);";
+            cmd.AddParam("$c", row.Codrub);
+            cmd.AddParam("$r", row.Rubrika);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Update(GrntiTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE Grnti SET Codrub=$c, Rubrika=$r WHERE Id=$id;";
+            cmd.AddParam("$c", row.Codrub);
+            cmd.AddParam("$r", row.Rubrika);
+            cmd.AddParam("$id", row.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Delete(long id)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Grnti WHERE Id=$id;";
+            cmd.AddParam("$id", id);
+            cmd.ExecuteNonQuery();
         }
 
         public void Clear()
@@ -2192,6 +2684,56 @@ namespace SQLWerk.Data.Sqlite
             tx.Commit();
         }
 
+        public void Add(VuzTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+        INSERT INTO Vuz
+            (Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof)
+        VALUES
+            ($co,$z1,$z1f,$z2,$r,$ci,$st,$ob,$on,$gv,$p);
+        """;
+            cmd.AddParam("$co", row.Codvuz).AddParam("$z1", row.Z1)
+               .AddParam("$z1f", row.Z1Full).AddParam("$z2", row.Z2)
+               .AddParam("$r", row.Region).AddParam("$ci", row.City)
+               .AddParam("$st", row.Status).AddParam("$ob", row.Obl)
+               .AddParam("$on", row.OblName).AddParam("$gv", row.GrVed)
+               .AddParam("$p", row.Prof);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Update(VuzTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+        UPDATE Vuz SET
+            Codvuz=$co, Z1=$z1, Z1Full=$z1f, Z2=$z2, Region=$r,
+            City=$ci, Status=$st, Obl=$ob, OblName=$on, GrVed=$gv, Prof=$p
+        WHERE Id=$id;
+        """;
+            cmd.AddParam("$co", row.Codvuz).AddParam("$z1", row.Z1)
+               .AddParam("$z1f", row.Z1Full).AddParam("$z2", row.Z2)
+               .AddParam("$r", row.Region).AddParam("$ci", row.City)
+               .AddParam("$st", row.Status).AddParam("$ob", row.Obl)
+               .AddParam("$on", row.OblName).AddParam("$gv", row.GrVed)
+               .AddParam("$p", row.Prof).AddParam("$id", row.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Delete(long id)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Vuz WHERE Id=$id;";
+            cmd.AddParam("$id", id);
+            cmd.ExecuteNonQuery();
+        }
+
         public void Clear()
         {
             using var conn = _factory.Create();
@@ -2243,6 +2785,46 @@ namespace SQLWerk.Models
 }
 </file>
 
+<file path="SQLWerk/ViewModels/LogViewModel.cs">
+using System;
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using System.Text;
+using SQLWerk.Services;
+
+namespace SQLWerk.ViewModels;
+
+public partial class LogViewModel : ObservableObject
+{
+    private readonly InMemoryLoggerProvider _provider;
+
+    [ObservableProperty] private ObservableCollection<LogEntry> _entries = new();
+    [ObservableProperty] private string _logText = "";
+    [ObservableProperty] private string _summary = "";
+
+    public LogViewModel(InMemoryLoggerProvider provider)
+    {
+        _provider = provider;
+        _provider.Changed += (_, _) => Refresh();
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var sb = new StringBuilder();
+        foreach (var e in _provider.Entries)
+            sb.AppendLine($"{e.Time:HH:mm:ss} [{e.Level}] {e.Message}");
+
+        LogText = sb.ToString();
+        Summary = $"Записей: {_provider.Entries.Count}";
+    }
+
+    [RelayCommand]
+    private void Clear() => _provider.Clear();
+}
+</file>
+
 <file path="SQLWerk/ViewModels/MainViewModel.cs">
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -2265,18 +2847,30 @@ public abstract class ViewModelBase : ObservableObject
 }
 </file>
 
-<file path="SQLWerk/Views/MainWindow.axaml.cs">
-using Avalonia.Controls;
+<file path="SQLWerk/Views/LogWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.LogWindow"
+        x:DataType="vm:LogViewModel"
+        Width="800" Height="500"
+        Title="Журнал">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="8">
+            <Button Content="Очистить" Command="{Binding ClearCommand}"/>
+            <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        </StackPanel>
 
-namespace SQLWerk.Views;
-
-public partial class MainWindow : Window
-{
-    public MainWindow()
-    {
-        InitializeComponent();
-    }
-}
+        <TextBox Text="{Binding LogText}"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 FontFamily="Consolas"
+                 FontSize="12"
+                 BorderThickness="0"
+                 Background="Transparent"/>
+    </DockPanel>
+</Window>
 </file>
 
 <file path="SQLWerk/app.manifest">
@@ -2607,6 +3201,62 @@ namespace SQLWerk.Data.Sqlite
             tx.Commit();
         }
 
+        public void Add(ExhibitTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = InsertSql;
+            cmd.AddParam("$c", row.Codvuz).AddParam("$z", row.Z2)
+               .AddParam("$t", row.Type).AddParam("$r", row.Regnumber)
+               .AddParam("$s", row.Subject).AddParam("$g", row.Grnti)
+               .AddParam("$bn", row.Bossname).AddParam("$bt", row.Bosstitle)
+               .AddParam("$e", row.Exhitype).AddParam("$v", row.Vystavki)
+               .AddParam("$ex", row.Exponat);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Update(ExhibitTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+        UPDATE Exhibits SET
+            Codvuz=$c, Z2=$z, Type=$t, Regnumber=$r, Subject=$s,
+            Grnti=$g, Bossname=$bn, Bosstitle=$bt, Exhitype=$e,
+            Vystavki=$v, Exponat=$ex
+        WHERE Id=$id;
+        """;
+            cmd.AddParam("$c", row.Codvuz).AddParam("$z", row.Z2)
+               .AddParam("$t", row.Type).AddParam("$r", row.Regnumber)
+               .AddParam("$s", row.Subject).AddParam("$g", row.Grnti)
+               .AddParam("$bn", row.Bossname).AddParam("$bt", row.Bosstitle)
+               .AddParam("$e", row.Exhitype).AddParam("$v", row.Vystavki)
+               .AddParam("$ex", row.Exponat).AddParam("$id", row.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Delete(long id)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Exhibits WHERE Id=$id;";
+            cmd.AddParam("$id", id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void DeleteByCodvuz(string codvuz)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Exhibits WHERE Codvuz=$c;";
+            cmd.AddParam("$c", codvuz);
+            cmd.ExecuteNonQuery();
+        }
+
         public void Clear()
         {
             using var conn = _factory.Create();
@@ -2759,6 +3409,193 @@ namespace SQLWerk.Data.Sqlite
             }
             return result;
         }
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/ValidationService.cs">
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    internal static class ValidationService
+    {
+        public static (bool IsValid, string? Reason) Validate<T>(T row) where T : ITableRow
+        {
+            return row switch
+            {
+                ExhibitTableRow e => IsValidExhibit(e),
+
+                VuzTableRow v => IsValidVuz(v),
+
+                GrntiTableRow g => IsValidGrnti(g)
+            };
+        }
+        private static (bool, string?) IsValidExhibit(ExhibitTableRow row)
+        {
+            var issues = new List<string>();
+            if (string.IsNullOrEmpty(row.Codvuz)) 
+                issues.Add("Пустое поле Кода Вуза");
+            if (string.IsNullOrEmpty(row.Grnti)) 
+                issues.Add("Пустое поле ГРНТИ");
+            if (!GrntiService.IsAllValid(row.Grnti))
+                issues.Add($"Некорректный грнти: {row.Grnti}");
+
+            return issues.Count == 0
+                ? (true, null)
+                : (false, string.Join(";", issues));
+        }
+
+        private static (bool, string?) IsValidVuz(VuzTableRow row)
+        {
+            var issues = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(row.Codvuz)) 
+                issues.Add("Пустое поле codvuz");
+            if (string.IsNullOrWhiteSpace(row.Obl) || !row.Obl.All(char.IsDigit))
+                issues.Add("Поле obl пустое или содержит не цифры");
+
+            void CheckRu(string? val, string name)
+            {
+                if (string.IsNullOrWhiteSpace(val)) issues.Add($"Пустое поле {name}");
+                else if (ContainsLatin(val)) issues.Add($"Поле {name} содержит латиницу");
+            }
+
+            CheckRu(row.Z1, "z1");
+            CheckRu(row.Z1Full, "z1full");
+            CheckRu(row.Z2, "z2");
+            CheckRu(row.Region, "region");
+            CheckRu(row.City, "city");
+            CheckRu(row.Status, "status");
+            CheckRu(row.OblName, "oblname");
+
+            return issues.Count == 0
+                ? (true, null)
+                : (false, string.Join("; ", issues));
+        }
+        private static (bool, string?) IsValidGrnti(GrntiTableRow row)
+        {
+            var issues = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(row.Codrub))
+                issues.Add("Пустое поле ГРНТИ");
+            if (string.IsNullOrWhiteSpace(row.Rubrika))
+                issues.Add("Пустое поле рубрики");
+
+            return issues.Count == 0 ? (true, null)
+                : (false, string.Join("; ", issues));
+        }
+        public static bool ContainsLatin(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return false;
+
+            foreach (char c in text)
+            {
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                    return true;
+            }
+
+            return false;
+        }
+    }
+}
+</file>
+
+<file path="SQLWerk/Views/MainWindow.axaml.cs">
+using System;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Microsoft.Extensions.DependencyInjection;
+using SQLWerk.Models;
+using SQLWerk.ViewModels;
+
+namespace SQLWerk.Views;
+
+public partial class MainWindow : Window
+{
+    private LogWindow? _logWindow;
+
+    public MainWindow() => InitializeComponent();
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+
+        if (DataContext is MainWindowViewModel vm)
+        {
+            vm.ShowLogRequested += OnShowLog;
+            vm.GrntiEditHandler = ShowGrntiEditAsync;
+            vm.ConfirmHandler = ShowConfirmAsync;
+            vm.VuzEditHandler = ShowVuzEditAsync;
+            vm.ExhibitEditHandler = ShowExhibitEditAsync;
+        }
+    }
+
+    private void OnShowLog(object? sender, EventArgs e)
+    {
+        if (_logWindow is { IsVisible: true })
+        {
+            _logWindow.Activate();
+            return;
+        }
+
+        _logWindow = new LogWindow
+        {
+            DataContext = App.Services.GetRequiredService<LogViewModel>()
+        };
+        _logWindow.Closed += (_, _) => _logWindow = null;
+        _logWindow.Show(this);
+    }
+
+    private async Task<GrntiTableRow?> ShowGrntiEditAsync(GrntiTableRow? existing)
+    {
+        var dialogVm = existing is null
+            ? new GrntiEditViewModel()
+            : new GrntiEditViewModel(existing);
+
+        var dlg = new GrntiEditWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<GrntiTableRow?>(this);
+    }
+
+    private async Task<bool> ShowConfirmAsync(string title, string message)
+    {
+        var dialogVm = new ConfirmViewModel(title, message);
+        var dlg = new ConfirmWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<bool>(this);
+    }
+
+    private async Task<VuzTableRow?> ShowVuzEditAsync(VuzTableRow? existing)
+    {
+        var dialogVm = existing is null
+            ? new VuzEditViewModel()
+            : new VuzEditViewModel(existing);
+
+        var dlg = new VuzEditWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<VuzTableRow?>(this);
+    }
+
+    private async Task<ExhibitTableRow?> ShowExhibitEditAsync(ExhibitTableRow? existing)
+    {
+        var dialogVm = existing is null
+            ? new ExhibitEditViewModel()
+            : new ExhibitEditViewModel(existing);
+
+        var dlg = new ExhibitEditWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<ExhibitTableRow?>(this);
     }
 }
 </file>
@@ -3475,13 +4312,13 @@ namespace SQLWerk.Services
     {
         public static string ParseGrnti(string? codeString)
         {
-            string pattern1 = @"\b(\d{2}),(\d{2}),(\d{2})\b";
+            //string pattern1 = @"\b(\d{2}),(\d{2}),(\d{2})\b";
             //string pattern2 = @"\b(\d{2}),(\d{2})\b";
 
             if (codeString != null)
             {
                 codeString = codeString.Trim();
-                codeString = Regex.Replace(codeString, pattern1, "$1.$2.$3");
+                //codeString = Regex.Replace(codeString, pattern1, "$1.$2.$3");
                 //codeString = Regex.Replace(codeString, pattern2, "$1.$2");
                 string[] codes = codeString.Split(new[] { ",", ";", " " }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -3505,6 +4342,31 @@ namespace SQLWerk.Services
             return (Regex.IsMatch(code, @"\A\d{2}\.\d{2}\.\d{2}\z") ||
                 Regex.IsMatch(code, @"\A\d{2}\.\d{2}\z") ||
                 Regex.IsMatch(code, @"\A\d{2}\z"));
+        }
+
+        public static bool IsAllValid(string? codeString)
+        {
+            if (string.IsNullOrWhiteSpace(codeString)) return false;
+
+            var parts = codeString.Split(
+                new[] { ',', ';' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length == 0) return false;
+
+            int shortCount = 0;
+            foreach (var part in parts)
+            {
+                var code = part.Trim();
+
+                if (!IsValid(code)) return false;
+
+                if (code.Length == 2) shortCount++;
+            }
+
+            if (shortCount > 1) return false;
+
+            return true;
         }
     }
 }
@@ -3621,6 +4483,7 @@ public partial class App : Application
     {
         var logProvider = new InMemoryLoggerProvider();
         services.AddSingleton(logProvider);
+        services.AddScoped<CrossValidationService>();
         services.AddLogging(b => b.AddProvider(logProvider).SetMinimumLevel(LogLevel.Information));
         services.AddTransient<LogViewModel>();
         services.AddSingleton<IExcelReader, ExcelReader>();
@@ -3649,6 +4512,146 @@ public partial class App : Application
 }
 </file>
 
+<file path="SQLWerk/Views/MainWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Width="1080" Height="600"
+        Title="Выставки МО">
+    <DockPanel>
+		<StackPanel DockPanel.Dock="Top" Spacing ="0">
+			<Menu>
+				<MenuItem Header ="Таблицы">
+					<MenuItem Header ="Выставки"
+							  Command ="{Binding SelectExhibitsCommand}" />
+					<MenuItem Header ="ВУЗы"
+							  Command ="{Binding SelectVuzCommand}" />
+					<MenuItem Header ="ГРНТИ"
+							  Command ="{Binding SelectGrntiCommand}" />
+					<Separator />
+					<MenuItem Header ="Вся информация"
+							  Command ="{Binding SelectFullCommand}" /> 
+				</MenuItem>
+				
+				<MenuItem Header ="Загрузка данных">
+					<MenuItem Header ="Выбрать файлы Excel"
+							  Command ="{Binding LoadCommand}" />
+				</MenuItem>
+			</Menu>
+
+			<Border Background="#EFEFEF" Padding="8,4">
+    <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding Status}"
+                   VerticalAlignment="Center" />
+
+        <TextBlock Grid.Column="1"
+                   Text="{Binding WarningCount, StringFormat='Проблем: {0}'}"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0" />
+
+        <Button Grid.Column="2"
+                Content="Журнал"
+                Classes.blink="{Binding HasErrors}"
+                Command="{Binding ShowLogCommand}" />
+    </Grid>
+</Border>
+		</StackPanel>
+
+        <Grid>
+			<Grid IsVisible="{Binding ShowExhibits}" RowDefinitions="Auto,*">
+    <StackPanel Grid.Row="0" Orientation="Horizontal"
+                Spacing="8" Margin="8,8,8,0">
+        <Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
+        <Button Content="Изменить"
+                Command="{Binding EditExhibitCommand}"
+                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+        <Button Content="Удалить"
+                Command="{Binding DeleteExhibitCommand}"
+                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+    </StackPanel>
+
+			<DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
+				ItemsSource="{Binding Exhibits}"
+				AutoGenerateColumns="False" IsReadOnly="True">
+			</DataGrid>
+		</Grid>
+			<Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
+    <StackPanel Grid.Row="0" Orientation="Horizontal"
+                Spacing="8" Margin="8,8,8,0">
+        <Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
+        <Button Content="Изменить"
+                Command="{Binding EditVuzCommand}"
+                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+        <Button Content="Удалить"
+                Command="{Binding DeleteVuzCommand}"
+                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+    </StackPanel>
+
+    <DataGrid x:Name="VuzGrid" Grid.Row="1"
+              ItemsSource="{Binding Vuzes}"
+              AutoGenerateColumns="False" IsReadOnly="True">
+    </DataGrid>
+</Grid>
+            <Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
+				<StackPanel Grid.Row="0" Orientation="Horizontal"
+					Spacing="8" Margin="8,8,8,0">
+				<Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
+				<Button Content="Изменить"
+					Command="{Binding EditGrntiCommand}"
+					CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+				<Button Content="Удалить"
+					Command="{Binding DeleteGrntiCommand}"
+					CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+			</StackPanel>
+
+			<DataGrid x:Name="GrntiGrid"
+				Grid.Row="1"
+				ItemsSource="{Binding Grnti}"
+				AutoGenerateColumns="False"
+				IsReadOnly="True">
+			<DataGrid.Columns>
+				<DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
+				<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
+			</DataGrid.Columns>
+		</DataGrid>
+	</Grid>
+            <DataGrid ItemsSource="{Binding FullTable}"
+                AutoGenerateColumns="False"
+				IsVisible="{Binding ShowAll}"
+				IsReadOnly="True">
+				<DataGrid.Columns>
+					<DataGridTextColumn Header="Номер" Binding="{Binding Id}" />
+					<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
+					<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+					<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+					<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+					<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
+					<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+					<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+					<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+					<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+					<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+					<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+					<DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
+					<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+					<DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
+					<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+					<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+					<DataGridTextColumn Header="Город" Binding="{Binding City}" />
+					<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+					<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+					<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+					<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+				</DataGrid.Columns>
+			</DataGrid>
+        </Grid>
+    </DockPanel>
+</Window>
+</file>
+
 <file path="SQLWerk/ViewModels/MainWindowViewModel.cs">
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -3664,8 +4667,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace SQLWerk.ViewModels
@@ -3687,6 +4690,7 @@ namespace SQLWerk.ViewModels
         private readonly IFilePicker _picker;
         private readonly IExcelReader _reader;
         private readonly InMemoryLoggerProvider _logProvider;
+        private readonly CrossValidationService _crossValidator;
 
         [ObservableProperty] private bool _hasErrors;
         [ObservableProperty] private int _warningCount;
@@ -3705,7 +4709,10 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private bool _showAll;
 
         public event EventHandler? ShowLogRequested;
-
+        public Func<GrntiTableRow?, Task<GrntiTableRow?>>? GrntiEditHandler { get; set; }
+        public Func<string, string, Task<bool>>? ConfirmHandler { get; set; }
+        public Func<VuzTableRow?, Task<VuzTableRow?>>? VuzEditHandler { get; set; }
+        public Func<ExhibitTableRow?, Task<ExhibitTableRow?>>? ExhibitEditHandler { get; set; }
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
@@ -3716,7 +4723,8 @@ namespace SQLWerk.ViewModels
             IFullDataRepository fullDataRepo,
             IFilePicker picker,
             IExcelReader reader,
-            InMemoryLoggerProvider loggerProvider)
+            InMemoryLoggerProvider loggerProvider,
+            CrossValidationService crossValidator)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
@@ -3728,6 +4736,7 @@ namespace SQLWerk.ViewModels
             _picker = picker;
             _reader = reader;
             _logProvider = loggerProvider;
+            _crossValidator = crossValidator;
 
             _logProvider.Changed += OnLogChanged;
 
@@ -3755,12 +4764,13 @@ namespace SQLWerk.ViewModels
             if (haveData)
             {
                 ReloadFromDatabase();
+                SelectExhibitsCommand.Execute(null);
                 Status = "Данные загружены из БД";
             }
             else
             {
                 Status = "Выберите файлы для импорта таблиц";
-            } 
+            }
         }
 
         private void ReloadFromDatabase()
@@ -3770,7 +4780,7 @@ namespace SQLWerk.ViewModels
             Vuzes = new ObservableCollection<VuzTableRow>(_vuzRepo.GetAll());
             Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
-            SelectExhibitsCommand.Execute(null);
+            //SelectExhibitsCommand.Execute(null);
         }
         private void LoadAll() //depricated for now
         {
@@ -3839,7 +4849,7 @@ namespace SQLWerk.ViewModels
         }
 
         [RelayCommand]
-        
+
         private async Task LoadAsync()
         {
             _logProvider.Clear();
@@ -3921,154 +4931,164 @@ namespace SQLWerk.ViewModels
                 _vuzImport.ForceImport(vuzPath!);
                 _grntiImport.ForceImport(grntiPath!);
 
+                var removed = _crossValidator.RemoveInvalidExhibits(
+                    _exhibitRepo, _vuzRepo, _grntiRepo);
+
                 ReloadFromDatabase();
+                SelectExhibitsCommand.Execute(null);
 
                 SelectExhibitsCommand.Execute(null);
-                Status = $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
+                Status = removed > 0
+                    ? $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count} (удалено {removed} несопоставленных)"
+                    : $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
             }
             catch (Exception ex)
             {
                 Status = "Ошибка импорта: " + ex.Message;
             }
         }
-    }
 
-
-        public sealed record GrntiRowVm(int rowNumber, string Original, string Formatted, bool IsValid)
+        [RelayCommand]
+        private async Task AddGrntiAsync()
         {
-            public string Status => IsValid ? "OK" : "Error";
+            if (GrntiEditHandler is null) return;
 
-            public IBrush RowBackGround => IsValid ? Brushes.Transparent : Brushes.Red;
+            var result = await GrntiEditHandler(null);
+            if (result is null) return;
+
+            _grntiRepo.Add(result);
+            ReloadFromDatabase();
+            SelectGrntiCommand.Execute(null);
+            Status = $"Рубрика добавлена: {result.Codrub} — {result.Rubrika}";
+        }
+
+        [RelayCommand]
+        private async Task EditGrntiAsync(GrntiTableRow? row)
+        {
+            if (GrntiEditHandler is null || row is null) return;
+
+            var result = await GrntiEditHandler(row);
+            if (result is null) return;
+
+            _grntiRepo.Update(result);
+            ReloadFromDatabase();
+            SelectGrntiCommand.Execute(null);
+            Status = $"Рубрика изменена: {result.Codrub} — {result.Rubrika}";
+        }
+
+        [RelayCommand]
+        private async Task DeleteGrntiAsync(GrntiTableRow? row)
+        {
+            if (ConfirmHandler is null || row is null) return;
+
+            var ok = await ConfirmHandler(
+                "Удаление рубрики",
+                $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\nДействие необратимо.");
+            if (!ok) return;
+
+            _grntiRepo.Delete(row.Id);
+            ReloadFromDatabase();
+            SelectGrntiCommand.Execute(null);
+            Status = $"Рубрика удалена: {row.Codrub} — {row.Rubrika}";
+        }
+
+        [RelayCommand]
+        private async Task AddVuzAsync()
+        {
+            if (VuzEditHandler is null) return;
+            var result = await VuzEditHandler(null);
+            if (result is null) return;
+
+            _vuzRepo.Add(result);
+            ReloadFromDatabase();
+            SelectVuzCommand.Execute(null);
+            Status = $"ВУЗ добавлен: {result.Codvuz}";
+        }
+
+        [RelayCommand]
+        private async Task EditVuzAsync(VuzTableRow? row)
+        {
+            if (VuzEditHandler is null || row is null) return;
+            var result = await VuzEditHandler(row);
+            if (result is null) return;
+
+            _vuzRepo.Update(result);
+            ReloadFromDatabase();
+            SelectVuzCommand.Execute(null);
+            Status = $"ВУЗ изменён: {result.Codvuz}";
+        }
+
+        [RelayCommand]
+        private async Task DeleteVuzAsync(VuzTableRow? row)
+        {
+            if (ConfirmHandler is null || row is null) return;
+
+            var ok = await ConfirmHandler(
+                "Удаление ВУЗа",
+                $"Удалить ВУЗ «{row.Codvuz} — {row.Z1}»?\n" +
+                $"Все связанные выставки этого ВУЗа также будут удалены.");
+            if (!ok) return;
+
+            _exhibitRepo.DeleteByCodvuz(row.Codvuz ?? "");
+            _vuzRepo.Delete(row.Id);
+
+            ReloadFromDatabase();
+            SelectVuzCommand.Execute(null);
+            Status = $"ВУЗ удалён: {row.Codvuz}";
+        }
+
+        // ---------- Выставки ----------
+        [RelayCommand]
+        private async Task AddExhibitAsync()
+        {
+            if (ExhibitEditHandler is null) return;
+            var result = await ExhibitEditHandler(null);
+            if (result is null) return;
+
+            _exhibitRepo.Add(result);
+            ReloadFromDatabase();
+            SelectExhibitsCommand.Execute(null);
+            Status = $"Выставка добавлена (Id={result.Id})";
+        }
+
+        [RelayCommand]
+        private async Task EditExhibitAsync(ExhibitTableRow? row)
+        {
+            if (ExhibitEditHandler is null || row is null) return;
+            var result = await ExhibitEditHandler(row);
+            if (result is null) return;
+
+            _exhibitRepo.Update(result);
+            ReloadFromDatabase();
+            SelectExhibitsCommand.Execute(null);
+            Status = $"Выставка изменена (Id={result.Id})";
+        }
+
+        [RelayCommand]
+        private async Task DeleteExhibitAsync(ExhibitTableRow? row)
+        {
+            if (ConfirmHandler is null || row is null) return;
+
+            var ok = await ConfirmHandler(
+                "Удаление выставки",
+                $"Удалить выставку Id={row.Id} «{row.Subject}»?\nДействие необратимо.");
+            if (!ok) return;
+
+            _exhibitRepo.Delete(row.Id);
+            ReloadFromDatabase();
+            SelectExhibitsCommand.Execute(null);
+            Status = $"Выставка удалена (Id={row.Id})";
+        }
     }
 }
-</file>
 
-<file path="SQLWerk/Views/MainWindow.axaml">
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:SQLWerk.ViewModels"
-        x:Class="SQLWerk.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Width="1080" Height="600"
-        Title="Выставки МО">
-    <DockPanel>
-		<StackPanel DockPanel.Dock="Top" Spacing ="0">
-			<Menu>
-				<MenuItem Header ="Таблицы">
-					<MenuItem Header ="Выставки"
-							  Command ="{Binding SelectExhibitsCommand}" />
-					<MenuItem Header ="ВУЗы"
-							  Command ="{Binding SelectVuzCommand}" />
-					<MenuItem Header ="ГРНТИ"
-							  Command ="{Binding SelectGrntiCommand}" />
-					<Separator />
-					<MenuItem Header ="Вся информация"
-							  Command ="{Binding SelectFullCommand}" /> 
-				</MenuItem>
-				
-				<MenuItem Header ="Загрузка данных">
-					<MenuItem Header ="Выбрать файлы Excel"
-							  Command ="{Binding LoadCommand}" />
-				</MenuItem>
-			</Menu>
 
-			<Border Background="#EFEFEF" Padding="8,4">
-    <Grid ColumnDefinitions="*,Auto,Auto">
-        <TextBlock Grid.Column="0"
-                   Text="{Binding Status}"
-                   VerticalAlignment="Center" />
+public sealed record GrntiRowVm(int rowNumber, string Original, string Formatted, bool IsValid)
+{
+    public string Status => IsValid ? "OK" : "Error";
 
-        <TextBlock Grid.Column="1"
-                   Text="{Binding WarningCount, StringFormat='Проблем: {0}'}"
-                   VerticalAlignment="Center"
-                   Margin="0,0,8,0" />
-
-        <Button Grid.Column="2"
-                Content="Журнал"
-                Classes.blink="{Binding HasErrors}"
-                Command="{Binding ShowLogCommand}" />
-    </Grid>
-</Border>
-		</StackPanel>
-
-        <Grid>
-			<DataGrid ItemsSource="{Binding Exhibits}"
-				AutoGenerateColumns="False"
-				IsVisible="{Binding ShowExhibits}"
-				IsReadOnly="True">
-				<DataGrid.Columns>
-					<DataGridTextColumn Header="Номер" Binding="{Binding Id}" />
-					<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-					<DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
-					<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
-					<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
-					<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
-					<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
-					<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
-					<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
-					<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
-					<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
-				</DataGrid.Columns>
-			</DataGrid>
-			<DataGrid ItemsSource="{Binding Vuzes}"
-				AutoGenerateColumns="False"
-			    IsVisible="{Binding ShowVuz}"
-				IsReadOnly="True">
-				<DataGrid.Columns>
-					<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-					<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
-					<DataGridTextColumn Header="Полное наименование" Binding="{Binding Z1Full}" />
-					<DataGridTextColumn Header="Краткое наименование" Binding="{Binding Z2}" />
-					<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
-					<DataGridTextColumn Header="Город" Binding="{Binding City}" />
-					<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
-					<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
-					<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
-					<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
-					<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
-				</DataGrid.Columns>
-			</DataGrid>
-            <DataGrid ItemsSource="{Binding Grnti}"
-                AutoGenerateColumns="False"
-				IsVisible="{Binding ShowGrnti}"
-				IsReadOnly="True">
-				<DataGrid.Columns>
-					<DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}" />
-					<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
-				</DataGrid.Columns>
-			</DataGrid>
-            <DataGrid ItemsSource="{Binding FullTable}"
-                AutoGenerateColumns="False"
-				IsVisible="{Binding ShowAll}"
-				IsReadOnly="True">
-				<DataGrid.Columns>
-					<DataGridTextColumn Header="Номер" Binding="{Binding Id}" />
-					<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
-					<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
-					<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
-					<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
-					<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
-					<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
-					<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
-					<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
-					<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
-					<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
-					<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-					<DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
-					<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
-					<DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
-					<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
-					<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
-					<DataGridTextColumn Header="Город" Binding="{Binding City}" />
-					<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
-					<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
-					<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
-					<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
-				</DataGrid.Columns>
-			</DataGrid>
-        </Grid>
-    </DockPanel>
-</Window>
+    public IBrush RowBackGround => IsValid ? Brushes.Transparent : Brushes.Red;
+}
 </file>
 
 </files>

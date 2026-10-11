@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.VuzEditWindow"
+        x:DataType="vm:VuzEditViewModel"
+        Width="560" Height="620"
+        WindowStartupLocation="CenterOwner"
+        Title="{Binding Title}">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="6">
+            <TextBlock Text="Код ВУЗа *"/>
+            <TextBox Text="{Binding Codvuz}"/>
+
+            <TextBlock Text="Наименование *"/>
+            <TextBox Text="{Binding Z1}"/>
+
+            <TextBlock Text="Полное наименование *"/>
+            <TextBox Text="{Binding Z1Full}"/>
+
+            <TextBlock Text="Краткое наименование *"/>
+            <TextBox Text="{Binding Z2}"/>
+
+            <TextBlock Text="Федеральный округ *"/>
+            <TextBox Text="{Binding Region}"/>
+
+            <TextBlock Text="Город *"/>
+            <TextBox Text="{Binding City}"/>
+
+            <TextBlock Text="Тип учреждения *"/>
+            <TextBox Text="{Binding Status}"/>
+
+            <TextBlock Text="Код региона (только цифры) *"/>
+            <TextBox Text="{Binding Obl}"/>
+
+            <TextBlock Text="Регион *"/>
+            <TextBox Text="{Binding OblName}"/>
+
+            <TextBlock Text="Статус"/>
+            <TextBox Text="{Binding GrVed}"/>
+
+            <TextBlock Text="Специализация"/>
+            <TextBox Text="{Binding Prof}"/>
+
+            <TextBlock Text="{Binding Error}" Foreground="Red" TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Content="Сохранить" Command="{Binding SaveCommand}"/>
+                <Button Content="Отмена"    Command="{Binding CancelCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

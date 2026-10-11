@@ -15,11 +15,27 @@ namespace SQLWerk.Data.Abstractions
     }
 
 
-    public interface IExhibitRepository : IRepository<ExhibitTableRow>{}
+    public interface IExhibitRepository : IRepository<ExhibitTableRow>
+    {
+        void Add(ExhibitTableRow row);
+        void Update(ExhibitTableRow row);
+        void Delete(long id);
+        void DeleteByCodvuz(string codvuz);
+    }
 
 
-    public interface IVuzRepository : IRepository<VuzTableRow>{}
+    public interface IVuzRepository : IRepository<VuzTableRow>
+    {
+        void Add(VuzTableRow row);
+        void Update(VuzTableRow row);
+        void Delete(long id);
+    }
 
 
-    public interface IGrntiRepository : IRepository<GrntiTableRow>{}
+    public interface IGrntiRepository : IRepository<GrntiTableRow>
+    {
+        void Add(GrntiTableRow row);
+        void Update(GrntiTableRow row);
+        void Delete(long id);
+    }
 }

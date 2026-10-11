@@ -105,6 +105,56 @@ namespace SQLWerk.Data.Sqlite
             tx.Commit();
         }
 
+        public void Add(VuzTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+        INSERT INTO Vuz
+            (Codvuz,Z1,Z1Full,Z2,Region,City,Status,Obl,OblName,GrVed,Prof)
+        VALUES
+            ($co,$z1,$z1f,$z2,$r,$ci,$st,$ob,$on,$gv,$p);
+        """;
+            cmd.AddParam("$co", row.Codvuz).AddParam("$z1", row.Z1)
+               .AddParam("$z1f", row.Z1Full).AddParam("$z2", row.Z2)
+               .AddParam("$r", row.Region).AddParam("$ci", row.City)
+               .AddParam("$st", row.Status).AddParam("$ob", row.Obl)
+               .AddParam("$on", row.OblName).AddParam("$gv", row.GrVed)
+               .AddParam("$p", row.Prof);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Update(VuzTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+        UPDATE Vuz SET
+            Codvuz=$co, Z1=$z1, Z1Full=$z1f, Z2=$z2, Region=$r,
+            City=$ci, Status=$st, Obl=$ob, OblName=$on, GrVed=$gv, Prof=$p
+        WHERE Id=$id;
+        """;
+            cmd.AddParam("$co", row.Codvuz).AddParam("$z1", row.Z1)
+               .AddParam("$z1f", row.Z1Full).AddParam("$z2", row.Z2)
+               .AddParam("$r", row.Region).AddParam("$ci", row.City)
+               .AddParam("$st", row.Status).AddParam("$ob", row.Obl)
+               .AddParam("$on", row.OblName).AddParam("$gv", row.GrVed)
+               .AddParam("$p", row.Prof).AddParam("$id", row.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Delete(long id)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Vuz WHERE Id=$id;";
+            cmd.AddParam("$id", id);
+            cmd.ExecuteNonQuery();
+        }
+
         public void Clear()
         {
             using var conn = _factory.Create();
