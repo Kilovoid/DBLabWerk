@@ -33,7 +33,7 @@
 							   VerticalAlignment="Center" />
 
 					<TextBlock Grid.Column="1"
-							   Text="{Binding WarningCount, StringFormat='Проблем: {0}'}"
+							   Text="{Binding WarningCount, StringFormat='Предупреждений: {0}'}"
 							   VerticalAlignment="Center"
 							   Margin="0,0,8,0" />
 
@@ -138,9 +138,8 @@
 					  IsVisible="{Binding ShowAll}"
 					  IsReadOnly="True">
 				<DataGrid.Columns>
-					<DataGridTextColumn Header="Номер" Binding="{Binding Id}" />
-					<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
 					<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+					<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
 					<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
 					<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
 					<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />

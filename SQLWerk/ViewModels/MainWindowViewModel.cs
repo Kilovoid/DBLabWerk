@@ -282,9 +282,7 @@ namespace SQLWerk.ViewModels
                 ReloadFromDatabase();
                 SelectExhibitsCommand.Execute(null);
 
-                Status = removed > 0
-                    ? $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count} (не загружено {removed} несопоставленных)"
-                    : $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
+                Status = $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
             }
             catch (Exception ex)
             {
@@ -331,6 +329,8 @@ namespace SQLWerk.ViewModels
             if (!ok) return;
 
             _grntiRepo.Delete(row.Id);
+            _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
+
             ReloadFromDatabase();
             SelectGrntiCommand.Execute(null);
             Status = $"Рубрика удалена: {row.Codrub} — {row.Rubrika}";
@@ -373,8 +373,8 @@ namespace SQLWerk.ViewModels
                 $"Все связанные выставки этого ВУЗа также будут удалены.");
             if (!ok) return;
 
-            _exhibitRepo.DeleteByCodvuz(row.Codvuz ?? "");
             _vuzRepo.Delete(row.Id);
+            _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
 
             ReloadFromDatabase();
             SelectVuzCommand.Execute(null);
@@ -392,7 +392,7 @@ namespace SQLWerk.ViewModels
             _exhibitRepo.Add(result);
             ReloadFromDatabase();
             SelectExhibitsCommand.Execute(null);
-            Status = $"Выставка добавлена (Id={result.Id})";
+            Status = $"Выставка с регистрационным номером {result.Regnumber} добавлена";
         }
 
         [RelayCommand]
@@ -405,7 +405,7 @@ namespace SQLWerk.ViewModels
             _exhibitRepo.Update(result);
             ReloadFromDatabase();
             SelectExhibitsCommand.Execute(null);
-            Status = $"Выставка изменена (Id={result.Id})";
+            Status = $"Выставка с регистрационным номером {result.Regnumber} изменена";
         }
 
         [RelayCommand]
@@ -415,13 +415,14 @@ namespace SQLWerk.ViewModels
 
             var ok = await ConfirmHandler(
                 "Удаление выставки",
-                $"Удалить выставку Id={row.Id} «{row.Subject}»?\nДействие необратимо.");
+                $"Удалить выставку с регистрационным номером {row.Regnumber} «{row.Subject}»?\nДействие необратимо.");
             if (!ok) return;
 
             _exhibitRepo.Delete(row.Id);
+
             ReloadFromDatabase();
             SelectExhibitsCommand.Execute(null);
-            Status = $"Выставка удалена (Id={row.Id})";
+            Status = $"Выставка с регистрационным номером {row.Regnumber} удалена";
         }
     }
 }

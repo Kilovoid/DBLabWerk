@@ -27,7 +27,7 @@ namespace SQLWerk.Services
                 issues.Add("Пустое поле Кода Вуза");
             if (string.IsNullOrEmpty(row.Grnti)) 
                 issues.Add("Пустое поле ГРНТИ");
-            if (!GrntiService.IsAllValid(row.Grnti))
+            else if (!GrntiService.IsAllValid(row.Grnti))
                 issues.Add($"Некорректный грнти: {row.Grnti}");
 
             return issues.Count == 0

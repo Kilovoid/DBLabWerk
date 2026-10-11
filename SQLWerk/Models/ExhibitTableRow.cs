@@ -31,17 +31,17 @@ namespace SQLWerk.Models
 
         public void FillTable(IExcelDataReader r)
         {
-            Codvuz = ExcelReader.Get(r, 0).Trim();
-            Z2 = ExcelReader.Get(r, 1).Trim();
-            Type = ExcelReader.Get(r, 2).Trim();
-            Regnumber = ExcelReader.Get(r, 3).Trim();
-            Subject = ExcelReader.Get(r, 4).Trim();
-            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5));
-            Bossname = ExcelReader.Get(r, 6).Trim();
-            Bosstitle = ExcelReader.Get(r, 7).Trim();
-            Exhitype = ExcelReader.Get(r, 8).Trim();
-            Vystavki = ExcelReader.Get(r, 9).Trim();
-            Exponat = ExcelReader.Get(r, 10).Trim();
+            Codvuz = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Z2 = ExcelReader.Get(r, 1)?.Trim() ?? "";
+            Type = ExcelReader.Get(r, 2)?.Trim() ?? "";
+            Regnumber = ExcelReader.Get(r, 3)?.Trim() ?? "";
+            Subject = ExcelReader.Get(r, 4)?.Trim() ?? "";
+            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5)) ?? "";
+            Bossname = ExcelReader.Get(r, 6)?.Trim() ?? "";
+            Bosstitle = ExcelReader.Get(r, 7)?.Trim() ?? "";
+            Exhitype = ExcelReader.Get(r, 8)?.Trim() ?? "";
+            Vystavki = ExcelReader.Get(r, 9)?.Trim() ?? "";
+            Exponat = ExcelReader.Get(r, 10)?.Trim() ?? "";
         }
     }
 }

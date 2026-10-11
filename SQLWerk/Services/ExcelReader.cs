@@ -40,7 +40,7 @@ namespace SQLWerk.Services
                 if (ok) result.Add(row);
                 else
                     _logger.LogWarning(
-                        "Строка {Row} в файле {File} удалена. Причина: {Reason}",
+                        "Строка {Row} из файла {File} не добавлена в базу данных. Причина: {Reason}",
                         rowNumber, fileName, reason ?? "—");
             }
 
