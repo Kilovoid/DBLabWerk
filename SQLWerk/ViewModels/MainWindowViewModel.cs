@@ -190,6 +190,11 @@ namespace SQLWerk.ViewModels
                 .Select(v => (v.Z1Full ?? "").Trim())
                 .Where(s => s.Length > 0)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            GrntiEditViewModel.ExistingCodrub = Grnti
+                .Select(g => (g.Codrub ?? "").Trim())
+                .Where(s => s.Length > 0)
+              .ToHashSet(StringComparer.Ordinal);
             //SelectExhibitsCommand.Execute(null);
         }
         private void LoadAll() //depricated for now
