@@ -20,8 +20,8 @@ namespace SQLWerk.Models
 
         public void FillTable(IExcelDataReader r)
         {
-            Codrub = ExcelReader.Get(r, 0).Trim();
-            Rubrika = ExcelReader.Get(r, 1).Trim();
+            Codrub = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Rubrika = ExcelReader.Get(r, 1)?.Trim() ?? "";
         }
     }
 }

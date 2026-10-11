@@ -42,7 +42,7 @@ namespace SQLWerk.Services
                 if (cod.Length == 0)
                     issues.Add("пустой код ВУЗа");
                 else if (!validCodvuz.Contains(cod))
-                    issues.Add($"ВУЗ '{cod}' не найден или без полного наименования");
+                    issues.Add($"ВУЗ с кодом '{cod}' не найден");
 
                 var missing = GetMissingRubrics(e.Grnti, validRubrics);
                 if (missing.Count > 0)
@@ -56,7 +56,7 @@ namespace SQLWerk.Services
                 {
                     removed++;
                     _logger.LogWarning(
-                        "Выставка Id={Id} не загружена. Причина: {Reason}",
+                        "Выставка {Id} удалена. Причина: {Reason}",
                         e.Id, string.Join("; ", issues));
                 }
             }
