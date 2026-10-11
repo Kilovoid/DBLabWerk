@@ -119,6 +119,452 @@ SQLWerk.slnx
 <files>
 This section contains the contents of the repository's files.
 
+<file path="SQLWerk/Data/Abstractions/IConnectionFactory.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    internal interface IConnectionFactory
+    {
+        SqliteConnection Create();
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IDataBaseMaintenanceService.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IDataBaseMaintenanceService
+    {
+        void ReloadDataBase();
+        void RecreateSchema();
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IExcelReader.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IExcelReader
+    {
+        List<T> Parse<T>(string filePath) where T : ITableRow, new();
+        string[] GetHeaders(string filePath);
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IFilePicker.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IFilePicker
+    {
+        Task<string[]?> PickFilesAsync(string title, int minCount);
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IFullDataRepository.cs">
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IFullDataRepository
+    {
+        void EnsureCreated();
+        List<FullModel> GetAll();
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/ITableRow.cs">
+using ExcelDataReader;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface ITableRow
+    {
+        void FillTable(IExcelDataReader reader);
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Extensions/SqliteCommandExtensions.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Extensions
+{
+    public static class SqliteCommandExtensions // Класс для человеческого написания команд добавления и тд потому что у нас много полей
+    {
+        public static SqliteCommand AddParam (this SqliteCommand cmd, string name, object? value)
+        {
+            cmd.Parameters.Add(new SqliteParameter(name, value ?? DBNull.Value)); // Чтобы было не C# null, a DBNull
+            return cmd;
+        }
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Sqlite/SqliteConnectionFactory.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Data.Abstractions;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Data.Sqlite
+{
+    internal class SqliteConnectionFactory : IConnectionFactory
+    {
+        private readonly string _cs;
+
+        public SqliteConnectionFactory(string dbPath) =>
+            _cs = $"Data Source={Path.GetFullPath(dbPath)}";
+
+        public SqliteConnection Create() => new SqliteConnection(_cs);
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/DataBaseMaintenanceService.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    internal class DataBaseMaintenanceService : IDataBaseMaintenanceService
+    {
+        private readonly IConnectionFactory _factory;
+        private readonly IFullDataRepository _fullDataRepo;
+        private readonly string _dbPath;
+
+        public DataBaseMaintenanceService(IConnectionFactory factory,
+            IFullDataRepository fullDataRepo,
+            string dbPath)
+        {
+            _factory = factory;
+            _fullDataRepo = fullDataRepo;
+            _dbPath = dbPath;
+        }
+
+        public void ReloadDataBase()
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(_dbPath))
+            {
+                File.Delete(_dbPath);
+            }
+            RecreateSchema();
+        }
+
+        public void RecreateSchema()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+
+            cmd.CommandText = """
+                DROP VIEW  IF EXISTS AllDataView;
+                DROP TABLE IF EXISTS Exhibits;
+                DROP TABLE IF EXISTS Vuz;
+                DROP TABLE IF EXISTS Grnti;
+
+                CREATE TABLE Exhibits (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codvuz    TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT,
+                    Subject   TEXT, Grnti TEXT, Bossname TEXT, Bosstitle TEXT,
+                    Exhitype  TEXT, Vystavki TEXT, Exponat TEXT
+                );
+
+                CREATE TABLE Vuz (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codvuz    TEXT, Z2 TEXT, Z1 TEXT, Z1Full TEXT,
+                    Region    TEXT, City TEXT, Status TEXT,
+                    Obl       TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
+                );
+
+                CREATE TABLE Grnti (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codrub    TEXT, Rubrika TEXT
+                );
+            """;
+            cmd.ExecuteNonQuery();
+
+            _fullDataRepo.EnsureCreated();
+        }
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/FilePicker.cs">
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
+using SQLWerk.Data.Abstractions;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SQLWerk.Services
+{
+    public class FilePicker : IFilePicker
+    {
+        private readonly Window _owner;
+
+        public FilePicker(Window owner)
+        {
+            _owner = owner;
+        }
+        public async Task<string[]?> PickFilesAsync(string title, int minCount)
+        {
+            var files = await _owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = title,
+                AllowMultiple = true,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Excel")
+                    {
+                        Patterns = new[] { "*.xls", "*.xlsx" }
+                    }
+                }
+            });
+            if (files.Count < minCount) return null;
+            return files.Select(f => f.Path.LocalPath).ToArray();
+        }
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/HeaderValidator.cs">
+using SQLWerk.Data.Abstractions;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    public class HeaderValidator
+    {
+        public static bool IsMatch(string filePath, string[] expected, IExcelReader reader, out string error)
+        {
+            error = "";
+            string[] actual;
+            try
+            {
+                actual = reader.GetHeaders(filePath);
+            }
+            catch (Exception ex)
+            {
+                error = $"Can't open file {filePath} : {ex.Message}";
+                return false;
+            }
+
+            if (actual.Length != expected.Length)
+            {
+                error = $"Files do not compare";
+                return false;
+            }
+
+            for (int i = 0; i < expected.Length; i++)
+            {
+                if (!string.Equals(actual[i], expected[i]))
+                {
+                    error = $"{Path.GetFileName(filePath)}: wrong column {i + 1}";
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/InMemoryLoggerProvider.cs">
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SQLWerk.Services;
+
+public sealed record LogEntry(DateTime Time, LogLevel Level, string Message,
+                              string File, int Row, string Reason);
+
+public sealed class InMemoryLoggerProvider : ILoggerProvider
+{
+    private readonly List<LogEntry> _entries = new();
+    private readonly object _lock = new();
+
+    public IReadOnlyList<LogEntry> Entries
+    {
+        get { lock (_lock) return _entries.ToList(); }
+    }
+
+    public bool HasWarnings
+    {
+        get { lock (_lock) return _entries.Any(e => e.Level >= LogLevel.Warning); }
+    }
+
+    public event EventHandler? Changed;
+
+    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
+
+    public void Clear()
+    {
+        lock (_lock) _entries.Clear();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Dispose() { }
+
+    private void Add(LogEntry entry)
+    {
+        lock (_lock) _entries.Add(entry);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private sealed class Logger : ILogger
+    {
+        private readonly InMemoryLoggerProvider _owner;
+        private readonly string _category;
+
+        public Logger(InMemoryLoggerProvider owner, string category)
+        {
+            _owner = owner;
+            _category = category;
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+
+        public void Log<TState>(LogLevel level, EventId id, TState state,
+            Exception? ex, Func<TState, Exception?, string> fmt)
+        {
+            if (!IsEnabled(level)) return;
+
+            string file = "", reason = "";
+            int row = 0;
+
+            if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
+            {
+                foreach (var p in kv)
+                {
+                    switch (p.Key)
+                    {
+                        case "File": file = p.Value?.ToString() ?? ""; break;
+                        case "Row": int.TryParse(p.Value?.ToString(), out row); break;
+                        case "Reason": reason = p.Value?.ToString() ?? ""; break;
+                    }
+                }
+            }
+
+            _owner.Add(new LogEntry(DateTime.Now, level, fmt(state, ex), file, row, reason));
+        }
+    }
+}
+</file>
+
+<file path="SQLWerk/Styles/DataGridStyles.axaml">
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="#F5F5F5"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="GridLinesVisibility" Value="All"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="#D0D0D0"/>
+        <Setter Property="VerticalGridLinesBrush" Value="#D0D0D0"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="#E0E0E0"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="Padding" Value="8,4"/>
+    </Style>
+
+    <Style Selector="DataGridRow">
+        <Setter Property="Background" Value="#FAFAFA"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+
+    <Style Selector="DataGridRow:nth-child(even)">
+        <Setter Property="Background" Value="#F0F0F0"/>
+    </Style>
+
+    <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="#E3F2FD"/>
+    </Style>
+
+    <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="#ADD8E6"/>
+        <Setter Property="Stroke" Value="#87CEEB"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+    </Style>
+
+    <Style Selector="DataGridRow:selected">
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+
+    <Style Selector="DataGridCell">
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        <Setter Property="BorderThickness" Value="0,0,1,0"/>
+        <Setter Property="Padding" Value="6,4"/>
+    </Style>
+
+    <Style Selector="DataGridCell:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+
+</Styles>
+</file>
+
 <file path="SQLWerk/ViewModels/ConfirmViewModel.cs">
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -519,6 +965,20 @@ public partial class GrntiEditWindow : Window
 }
 </file>
 
+<file path="SQLWerk/Views/LogWindow.axaml.cs">
+using Avalonia.Controls;
+
+namespace SQLWerk.Views;
+
+public partial class LogWindow : Window
+{
+    public LogWindow()
+    {
+        InitializeComponent();
+    }
+}
+</file>
+
 <file path="SQLWerk/Views/VuzEditWindow.axaml">
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -583,570 +1043,6 @@ namespace SQLWerk.Views;
 public partial class VuzEditWindow : Window
 {
     public VuzEditWindow() => InitializeComponent();
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IConnectionFactory.cs">
-using Microsoft.Data.Sqlite;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    internal interface IConnectionFactory
-    {
-        SqliteConnection Create();
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IDataBaseMaintenanceService.cs">
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IDataBaseMaintenanceService
-    {
-        void ReloadDataBase();
-        void RecreateSchema();
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IExcelReader.cs">
-using Microsoft.Data.Sqlite;
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IExcelReader
-    {
-        List<T> Parse<T>(string filePath) where T : ITableRow, new();
-        string[] GetHeaders(string filePath);
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IFilePicker.cs">
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IFilePicker
-    {
-        Task<string[]?> PickFilesAsync(string title, int minCount);
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IFullDataRepository.cs">
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IFullDataRepository
-    {
-        void EnsureCreated();
-        List<FullModel> GetAll();
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/ITableRow.cs">
-using ExcelDataReader;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface ITableRow
-    {
-        void FillTable(IExcelDataReader reader);
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Extensions/SqliteCommandExtensions.cs">
-using Microsoft.Data.Sqlite;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Extensions
-{
-    public static class SqliteCommandExtensions // Класс для человеческого написания команд добавления и тд потому что у нас много полей
-    {
-        public static SqliteCommand AddParam (this SqliteCommand cmd, string name, object? value)
-        {
-            cmd.Parameters.Add(new SqliteParameter(name, value ?? DBNull.Value)); // Чтобы было не C# null, a DBNull
-            return cmd;
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Sqlite/SqliteConnectionFactory.cs">
-using Microsoft.Data.Sqlite;
-using SQLWerk.Data.Abstractions;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-
-namespace SQLWerk.Data.Sqlite
-{
-    internal class SqliteConnectionFactory : IConnectionFactory
-    {
-        private readonly string _cs;
-
-        public SqliteConnectionFactory(string dbPath) =>
-            _cs = $"Data Source={Path.GetFullPath(dbPath)}";
-
-        public SqliteConnection Create() => new SqliteConnection(_cs);
-    }
-}
-</file>
-
-<file path="SQLWerk/Services/CrossValidationService.cs">
-using Microsoft.Extensions.Logging;
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace SQLWerk.Services
-{
-    public class CrossValidationService
-    {
-        private readonly ILogger<CrossValidationService> _logger;
-
-        public CrossValidationService(ILogger<CrossValidationService> logger) => _logger = logger;
-
-        public int RemoveInvalidExhibits(
-            IExhibitRepository exhibitRepo,
-            IVuzRepository vuzRepo,
-            IGrntiRepository grntiRepo)
-        {
-            var validCodvuz = vuzRepo.GetAll()
-                .Where(v => !string.IsNullOrWhiteSpace(v.Codvuz)
-                         && !string.IsNullOrWhiteSpace(v.Z1Full))
-                .Select(v => v.Codvuz!.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            var validRubrics = grntiRepo.GetAll()
-                .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
-                .Select(g => ExtractRubric(g.Codrub!))
-                .Where(r => r.Length == 2)
-                .ToHashSet(StringComparer.Ordinal);
-
-            var exhibits = exhibitRepo.GetAll();
-            var kept = new List<ExhibitTableRow>(exhibits.Count);
-            int removed = 0;
-
-            foreach (var e in exhibits)
-            {
-                var issues = new List<string>();
-
-                var cod = e.Codvuz?.Trim() ?? "";
-                if (cod.Length == 0)
-                    issues.Add("пустой код ВУЗа");
-                else if (!validCodvuz.Contains(cod))
-                    issues.Add($"ВУЗ '{cod}' не найден или без полного наименования");
-
-                var missing = GetMissingRubrics(e.Grnti, validRubrics);
-                if (missing.Count > 0)
-                    issues.Add($"рубрики ГРНТИ не найдены: {string.Join(", ", missing)}");
-
-                if (issues.Count == 0)
-                {
-                    kept.Add(e);
-                }
-                else
-                {
-                    removed++;
-                    _logger.LogWarning(
-                        "Выставка Id={Id} не загружена. Причина: {Reason}",
-                        e.Id, string.Join("; ", issues));
-                }
-            }
-
-            if (removed > 0)
-            {
-                exhibitRepo.Clear();
-                exhibitRepo.SaveAll(kept);
-            }
-
-            return removed;
-        }
-
-        private static string ExtractRubric(string code)
-        {
-            var trimmed = code.Trim();
-            return trimmed.Length >= 2 ? trimmed.Substring(0, 2) : trimmed;
-        }
-
-        private static List<string> GetMissingRubrics(string? grntiString, HashSet<string> valid)
-        {
-            var result = new List<string>();
-            if (string.IsNullOrWhiteSpace(grntiString)) return result;
-
-            var parts = grntiString.Split(
-                new[] { ',', ';' },
-                StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var part in parts)
-            {
-                var rubric = ExtractRubric(part);
-                if (rubric.Length == 2
-                    && !valid.Contains(rubric)
-                    && !result.Contains(rubric))
-                {
-                    result.Add(rubric);
-                }
-            }
-            return result;
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Services/DataBaseMaintenanceService.cs">
-using Microsoft.Data.Sqlite;
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Data.Sqlite;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.IO;
-using System.Text;
-
-namespace SQLWerk.Services
-{
-    internal class DataBaseMaintenanceService : IDataBaseMaintenanceService
-    {
-        private readonly IConnectionFactory _factory;
-        private readonly IFullDataRepository _fullDataRepo;
-        private readonly string _dbPath;
-
-        public DataBaseMaintenanceService(IConnectionFactory factory,
-            IFullDataRepository fullDataRepo,
-            string dbPath)
-        {
-            _factory = factory;
-            _fullDataRepo = fullDataRepo;
-            _dbPath = dbPath;
-        }
-
-        public void ReloadDataBase()
-        {
-            SqliteConnection.ClearAllPools();
-            if (File.Exists(_dbPath))
-            {
-                File.Delete(_dbPath);
-            }
-            RecreateSchema();
-        }
-
-        public void RecreateSchema()
-        {
-            using var conn = _factory.Create();
-            conn.Open();
-
-            using var cmd = conn.CreateCommand();
-
-            cmd.CommandText = """
-                DROP VIEW  IF EXISTS AllDataView;
-                DROP TABLE IF EXISTS Exhibits;
-                DROP TABLE IF EXISTS Vuz;
-                DROP TABLE IF EXISTS Grnti;
-
-                CREATE TABLE Exhibits (
-                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codvuz    TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT,
-                    Subject   TEXT, Grnti TEXT, Bossname TEXT, Bosstitle TEXT,
-                    Exhitype  TEXT, Vystavki TEXT, Exponat TEXT
-                );
-
-                CREATE TABLE Vuz (
-                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codvuz    TEXT, Z2 TEXT, Z1 TEXT, Z1Full TEXT,
-                    Region    TEXT, City TEXT, Status TEXT,
-                    Obl       TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
-                );
-
-                CREATE TABLE Grnti (
-                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codrub    TEXT, Rubrika TEXT
-                );
-            """;
-            cmd.ExecuteNonQuery();
-
-            _fullDataRepo.EnsureCreated();
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Services/FilePicker.cs">
-using Avalonia.Controls;
-using Avalonia.Platform.Storage;
-using SQLWerk.Data.Abstractions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SQLWerk.Services
-{
-    public class FilePicker : IFilePicker
-    {
-        private readonly Window _owner;
-
-        public FilePicker(Window owner)
-        {
-            _owner = owner;
-        }
-        public async Task<string[]?> PickFilesAsync(string title, int minCount)
-        {
-            var files = await _owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = title,
-                AllowMultiple = true,
-                FileTypeFilter = new[]
-                {
-                    new FilePickerFileType("Excel")
-                    {
-                        Patterns = new[] { "*.xls", "*.xlsx" }
-                    }
-                }
-            });
-            if (files.Count < minCount) return null;
-            return files.Select(f => f.Path.LocalPath).ToArray();
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Services/HeaderValidator.cs">
-using SQLWerk.Data.Abstractions;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-
-namespace SQLWerk.Services
-{
-    public class HeaderValidator
-    {
-        public static bool IsMatch(string filePath, string[] expected, IExcelReader reader, out string error)
-        {
-            error = "";
-            string[] actual;
-            try
-            {
-                actual = reader.GetHeaders(filePath);
-            }
-            catch (Exception ex)
-            {
-                error = $"Can't open file {filePath} : {ex.Message}";
-                return false;
-            }
-
-            if (actual.Length != expected.Length)
-            {
-                error = $"Files do not compare";
-                return false;
-            }
-
-            for (int i = 0; i < expected.Length; i++)
-            {
-                if (!string.Equals(actual[i], expected[i]))
-                {
-                    error = $"{Path.GetFileName(filePath)}: wrong column {i + 1}";
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Services/InMemoryLoggerProvider.cs">
-using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace SQLWerk.Services;
-
-public sealed record LogEntry(DateTime Time, LogLevel Level, string Message,
-                              string File, int Row, string Reason);
-
-public sealed class InMemoryLoggerProvider : ILoggerProvider
-{
-    private readonly List<LogEntry> _entries = new();
-    private readonly object _lock = new();
-
-    public IReadOnlyList<LogEntry> Entries
-    {
-        get { lock (_lock) return _entries.ToList(); }
-    }
-
-    public bool HasWarnings
-    {
-        get { lock (_lock) return _entries.Any(e => e.Level >= LogLevel.Warning); }
-    }
-
-    public event EventHandler? Changed;
-
-    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
-
-    public void Clear()
-    {
-        lock (_lock) _entries.Clear();
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void Dispose() { }
-
-    private void Add(LogEntry entry)
-    {
-        lock (_lock) _entries.Add(entry);
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    private sealed class Logger : ILogger
-    {
-        private readonly InMemoryLoggerProvider _owner;
-        private readonly string _category;
-
-        public Logger(InMemoryLoggerProvider owner, string category)
-        {
-            _owner = owner;
-            _category = category;
-        }
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
-
-        public void Log<TState>(LogLevel level, EventId id, TState state,
-            Exception? ex, Func<TState, Exception?, string> fmt)
-        {
-            if (!IsEnabled(level)) return;
-
-            string file = "", reason = "";
-            int row = 0;
-
-            if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
-            {
-                foreach (var p in kv)
-                {
-                    switch (p.Key)
-                    {
-                        case "File": file = p.Value?.ToString() ?? ""; break;
-                        case "Row": int.TryParse(p.Value?.ToString(), out row); break;
-                        case "Reason": reason = p.Value?.ToString() ?? ""; break;
-                    }
-                }
-            }
-
-            _owner.Add(new LogEntry(DateTime.Now, level, fmt(state, ex), file, row, reason));
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Styles/DataGridStyles.axaml">
-<Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-
-    <Style Selector="DataGrid">
-        <Setter Property="Background" Value="#F5F5F5"/>
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="GridLinesVisibility" Value="All"/>
-        <Setter Property="HorizontalGridLinesBrush" Value="#D0D0D0"/>
-        <Setter Property="VerticalGridLinesBrush" Value="#D0D0D0"/>
-        <Setter Property="BorderBrush" Value="#B0B0B0"/>
-        <Setter Property="BorderThickness" Value="1"/>
-    </Style>
-
-    <Style Selector="DataGridColumnHeader">
-        <Setter Property="Background" Value="#E0E0E0"/>
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="BorderBrush" Value="#B0B0B0"/>
-        <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        <Setter Property="Padding" Value="8,4"/>
-    </Style>
-
-    <Style Selector="DataGridRow">
-        <Setter Property="Background" Value="#FAFAFA"/>
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="BorderBrush" Value="#E0E0E0"/>
-        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-    </Style>
-
-    <Style Selector="DataGridRow:nth-child(even)">
-        <Setter Property="Background" Value="#F0F0F0"/>
-    </Style>
-
-    <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
-        <Setter Property="Fill" Value="#E3F2FD"/>
-    </Style>
-
-    <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
-        <Setter Property="Fill" Value="#ADD8E6"/>
-        <Setter Property="Stroke" Value="#87CEEB"/>
-        <Setter Property="StrokeThickness" Value="2"/>
-    </Style>
-
-    <Style Selector="DataGridRow:selected">
-        <Setter Property="Foreground" Value="Black"/>
-    </Style>
-
-    <Style Selector="DataGridCell">
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="BorderBrush" Value="#E0E0E0"/>
-        <Setter Property="BorderThickness" Value="0,0,1,0"/>
-        <Setter Property="Padding" Value="6,4"/>
-    </Style>
-
-    <Style Selector="DataGridCell:selected /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="Black"/>
-    </Style>
-
-</Styles>
-</file>
-
-<file path="SQLWerk/Views/LogWindow.axaml.cs">
-using Avalonia.Controls;
-
-namespace SQLWerk.Views;
-
-public partial class LogWindow : Window
-{
-    public LogWindow()
-    {
-        InitializeComponent();
-    }
 }
 </file>
 
@@ -2380,6 +2276,344 @@ public class ViewLocator : IDataTemplate
 ExcelDataReader - знаю только это чудо.
 </file>
 
+<file path="SQLWerk/Data/Extensions/SqliteDataReaderExtensions.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Extensions
+{
+    public static class SqliteDataReaderExtensions
+    {
+        public static string? GetStringOrNull(this SqliteDataReader r, int i) =>
+            r.IsDBNull(i) ? null : r.GetString(i);
+        public static long GetLong(this SqliteDataReader r, int i) =>
+            r.GetInt64(i);
+    }
+}
+</file>
+
+<file path="SQLWerk/Models/FullModel.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Models
+{
+    public class FullModel
+    {
+        public long Id { get; set; }
+
+        public string? Codvuz { get; set; }
+        public string? Z2 { get; set; }
+        public string? Type { get; set; }
+        public string? Regnumber { get; set; }
+        public string? Subject { get; set; }
+        public string? Grnti { get; set; }
+        public string? Bossname { get; set; }
+        public string? Bosstitle { get; set; }
+        public string? Exhitype { get; set; }
+        public string? Vystavki { get; set; }
+        public string? Exponat { get; set; }
+
+        public string? Z1 { get; set; }
+        public string? Z1Full { get; set; }
+        public string? Region { get; set; }
+        public string? City { get; set; }
+        public string? Status { get; set; }
+        public string? Obl { get; set; }
+        public string? OblName { get; set; }
+        public string? GrVed { get; set; }
+        public string? Prof { get; set; }
+
+        public string? Codrub { get; set; }
+        public string? Rubrika { get; set; }
+    }
+}
+</file>
+
+<file path="SQLWerk/ViewModels/LogViewModel.cs">
+using System;
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using System.Text;
+using SQLWerk.Services;
+
+namespace SQLWerk.ViewModels;
+
+public partial class LogViewModel : ObservableObject
+{
+    private readonly InMemoryLoggerProvider _provider;
+
+    [ObservableProperty] private ObservableCollection<LogEntry> _entries = new();
+    [ObservableProperty] private string _logText = "";
+    [ObservableProperty] private string _summary = "";
+
+    public LogViewModel(InMemoryLoggerProvider provider)
+    {
+        _provider = provider;
+        _provider.Changed += (_, _) => Refresh();
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var sb = new StringBuilder();
+        foreach (var e in _provider.Entries)
+            sb.AppendLine($"{e.Time:HH:mm:ss} [{e.Level}] {e.Message}");
+
+        LogText = sb.ToString();
+        Summary = $"Записей: {_provider.Entries.Count}";
+    }
+
+    [RelayCommand]
+    private void Clear() => _provider.Clear();
+}
+</file>
+
+<file path="SQLWerk/ViewModels/MainViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+
+namespace SQLWerk.ViewModels;
+
+public partial class MainViewModel : ViewModelBase
+{
+    [ObservableProperty]
+    public partial string Greeting { get; set; } = "Welcome to Avalonia!";
+}
+</file>
+
+<file path="SQLWerk/ViewModels/ViewModelBase.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+
+namespace SQLWerk.ViewModels;
+
+public abstract class ViewModelBase : ObservableObject
+{
+}
+</file>
+
+<file path="SQLWerk/Views/LogWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.LogWindow"
+        x:DataType="vm:LogViewModel"
+        Width="800" Height="500"
+        Title="Журнал">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="8">
+            <Button Content="Очистить" Command="{Binding ClearCommand}"/>
+            <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        </StackPanel>
+
+        <TextBox Text="{Binding LogText}"
+                 IsReadOnly="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 FontFamily="Consolas"
+                 FontSize="12"
+                 BorderThickness="0"
+                 Background="Transparent"/>
+    </DockPanel>
+</Window>
+</file>
+
+<file path="SQLWerk/app.manifest">
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <!-- This manifest is used on Windows only.
+       Don't remove it as it might cause problems with window transparency and embedded controls.
+       For more details visit https://learn.microsoft.com/en-us/windows/win32/sbscs/application-manifests -->
+  <assemblyIdentity version="1.0.0.0" name="SQLWerk.Desktop"/>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- A list of the Windows versions that this application has been tested on
+           and is designed to work with. Uncomment the appropriate elements
+           and Windows will automatically select the most compatible environment. -->
+
+      <!-- Windows 10 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>
+</file>
+
+<file path="SQLWerk/ViewLocator.cs">
+using System;
+using System.Diagnostics.CodeAnalysis;
+using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using SQLWerk.ViewModels;
+
+namespace SQLWerk;
+
+/// <summary>
+/// Given a view model, returns the corresponding view if possible.
+/// </summary>
+[RequiresUnreferencedCode(
+    "Default implementation of ViewLocator involves reflection which may be trimmed away.",
+    Url = "https://docs.avaloniaui.net/docs/concepts/view-locator")]
+public class ViewLocator : IDataTemplate
+{
+    public Control? Build(object? param)
+    {
+        if (param is null)
+            return null;
+        
+        var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
+        var type = Type.GetType(name);
+
+        if (type != null)
+        {
+            return (Control)Activator.CreateInstance(type)!;
+        }
+        
+        return new TextBlock { Text = "Not Found: " + name };
+    }
+
+    public bool Match(object? data)
+    {
+        return data is ViewModelBase;
+    }
+}
+</file>
+
+<file path=".gitattributes">
+###############################################################################
+# Set default behavior to automatically normalize line endings.
+###############################################################################
+* text=auto
+
+###############################################################################
+# Set default behavior for command prompt diff.
+#
+# This is need for earlier builds of msysgit that does not have it on by
+# default for csharp files.
+# Note: This is only used by command line
+###############################################################################
+#*.cs     diff=csharp
+
+###############################################################################
+# Set the merge driver for project and solution files
+#
+# Merging from the command prompt will add diff markers to the files if there
+# are conflicts (Merging from VS is not affected by the settings below, in VS
+# the diff markers are never inserted). Diff markers may cause the following 
+# file extensions to fail to load in VS. An alternative would be to treat
+# these files as binary and thus will always conflict and require user
+# intervention with every merge. To do so, just uncomment the entries below
+###############################################################################
+#*.sln       merge=binary
+#*.csproj    merge=binary
+#*.vbproj    merge=binary
+#*.vcxproj   merge=binary
+#*.vcproj    merge=binary
+#*.dbproj    merge=binary
+#*.fsproj    merge=binary
+#*.lsproj    merge=binary
+#*.wixproj   merge=binary
+#*.modelproj merge=binary
+#*.sqlproj   merge=binary
+#*.wwaproj   merge=binary
+
+###############################################################################
+# behavior for image files
+#
+# image files are treated as binary by default.
+###############################################################################
+#*.jpg   binary
+#*.png   binary
+#*.gif   binary
+
+###############################################################################
+# diff behavior for common document formats
+# 
+# Convert binary document formats to text before diffing them. This feature
+# is only available from the command line. Turn it on by uncommenting the 
+# entries below.
+###############################################################################
+#*.doc   diff=astextplain
+#*.DOC   diff=astextplain
+#*.docx  diff=astextplain
+#*.DOCX  diff=astextplain
+#*.dot   diff=astextplain
+#*.DOT   diff=astextplain
+#*.pdf   diff=astextplain
+#*.PDF   diff=astextplain
+#*.rtf   diff=astextplain
+#*.RTF   diff=astextplain
+</file>
+
+<file path="READMESAVINS.md">
+## Общее задание
+
+Как я понимаю задание на следующую лабу (минимальное) - нам нужно
+
+1. Загрузить данные из таблиц
+2. Как-то придумать их отображение, в каком виде оно будет
+3. Если мне не изменяет память еще и целостность данных и нормальное чтение надо обеспечить
+
+То есть наша задача на сейчас - взять самый простой UI с условным меню сверху, там, например, 4 пункта - 3 таблички и гайд по программе. Можно там отрисовать этот VIEW еще.
+
+## VIEW
+
+Что касается VIEW. Как я понимаю это какой-то запрос, написанный заранее, который отображается как результат этого запроса к другим таблицам. При этом в самом нем данные не хранятся, не могут быть изменены и в целом это как визуализация или модель не real deal.
+
+VIEW полезен для нас на данном этапе как минимум для того, чтобы сшить таблицы. Например написать
+
+```sqlite
+CREATE VIEW our_view AS
+SELECT ...
+FROM nir n
+LEFT JOIN vuz v ON ...(по какому то принципу)
+LEFT JOIN boss b ON ...
+
+(это пример я пока не думал)
+```
+
+Как на писано на (m'lady) реддите "The simplest explanation is that it (view) is a saved query". -> [ссыль](https://www.reddit.com/r/SQL/comments/9vb5ch/what_exactly_is_a_sql_view/?show=original) .
+
+Возможно нам стоит еще и отображать все "правильно" но об этом ниже.
+
+## Связность таблиц
+
+Есть связь только общей таблицы со вспомогательными - связь между `Vyst_mo` и `VUZ` осуществляется только по значению codvuz - что важно, нам было сказано, что раз уж нет в таблице столбика "краткое наименование вуза", то ну и ладно, не надо его использовать и скорее всего отрисовывать в каком-то общем представлении тоже, так как это все таки лишний столбец.
+
+Между `Vyst_mo` и `grntirub` связь интересная. Я до сих пор не понимаю, почему нам даны названия целых тем с определенными цифрами (например, 02 - философия, но при этом 02.61.45 никак у философии не отсносится, так еще и стоит в нескольких строках по разным темам0). Сначала я думал, что ну может темы с одинаковым кодом хоть как-то связаны, но нет. Надо посмотреть насчет этого - нам говорил Полотнов, что "данные реальные и емуют смысл, а не просто перемешанные". Хм.
+
+В любом случае - ключей нет, просто связь по одному полю, а между `grntirub` и `VUZ` связи нет вовсе.
+
+## Обработка неконсистентных данных
+
+Это для меня понимается как самая основная наша задача на сейчас. Есть в целом несколько подходов, которые у меня на уме.
+
+1. Просто брать RAW таблицу, отрисовывать ее как есть, но программно обрабатывать разнообразные несоответсвия, введя их в код (например, закодить, что разделитель запятая, точка с запятой являются для программы одним и тем же).
+Плюсов такого подхода я вижу только два - мы показываем что ориг. данные не изменены, и нам не надо думать над рендером.
+Однако - у нас все еще данные выглядят грязно. Также я вижу здесь проблему пересчета данных каждый раз, потому что каждый раз наджо будет обращаться к условному классу "читателю", который умеет обрабатывать разные разделители.
+
+2. Брать RAW таблицу, оставлять ее как есть и потом просто рисовать "правильную" у нас в программе. Причем именно это - не VIEW. Это действительно таблица, в которую, например, можно занести данные, они ериализуются там в xlsx когда сохраняешь.
+
+При любом из этих подходов могут быть данные полностью не поддающиеся каким-либо условиям. Тогда действия такие - не разрешаем записать, если человек пишет, и логируем и предупреждаем (например, подсветкой), если данные уже записаны и читаются с ошибками.
+
+## Ридер для xls
+
+Здесь могу предложить только два варианта. Первый - ExcelDataReader (бесплатный, работает с большими таблицами и с их обработкой, читает и xls и xlsx). Доки к нему есть на репозитории : [ссыль](https://github.com/ExcelDataReader/ExcelDataReader)
+
+Второй - ClosedXML. Он, якобы, медленный (я это нашел на нескольких сайтах). Но он легче немног очем ExcelDataReader. Также кто-то говорил, не найду ссылку, что там есть какой-то колхоз с некоторыми даже простыми действиями над таблицей. Но у нас она маленькая, может потянет все
+
+Документация есть на отдельном сайте и она приятная : [Документация ClosedXML](https://docs.closedxml.io/en/latest/).
+</file>
+
+<file path="SQLWerk.slnx">
+<Solution>
+  <Project Path="SQLWerk/SQLWerk.csproj" />
+</Solution>
+</file>
+
 <file path="SQLWerk/Data/Abstractions/IRepository.cs">
 using SQLWerk.Models;
 using System;
@@ -2424,20 +2658,146 @@ namespace SQLWerk.Data.Abstractions
 }
 </file>
 
-<file path="SQLWerk/Data/Extensions/SqliteDataReaderExtensions.cs">
-using Microsoft.Data.Sqlite;
-using System;
+<file path="SQLWerk/Data/Sqlite/FullDataRepository.cs">
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Extensions;
+using SQLWerk.Models;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 
-namespace SQLWerk.Data.Extensions
+namespace SQLWerk.Data.Sqlite
 {
-    public static class SqliteDataReaderExtensions
+    internal class FullDataRepository : IFullDataRepository
     {
-        public static string? GetStringOrNull(this SqliteDataReader r, int i) =>
-            r.IsDBNull(i) ? null : r.GetString(i);
-        public static long GetLong(this SqliteDataReader r, int i) =>
-            r.GetInt64(i);
+        private readonly IConnectionFactory _factory;
+
+        public FullDataRepository(IConnectionFactory factory) => _factory = factory;
+
+        public void EnsureCreated()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using (var drop = conn.CreateCommand())
+            {
+                drop.CommandText = "DROP VIEW IF EXISTS AllDataView;";
+                drop.ExecuteNonQuery();
+            }
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+            CREATE VIEW AllDataView AS
+            SELECT
+            e.Id           AS ExhibitId,
+            e.Codvuz, v.Z2, e.Type, e.Regnumber, e.Subject, e.Grnti,
+            e.Bossname, e.Bosstitle, e.Exhitype, e.Vystavki, e.Exponat,
+
+            v.Id           AS VuzId,
+            v.Z1, v.Z1Full, v.Region, v.City, v.Status,
+            v.Obl, v.OblName, v.GrVed, v.Prof,
+
+            g.Id           AS GrntiId,
+            g.Codrub,
+            g.Rubrika
+            FROM Exhibits e
+            LEFT JOIN Vuz   v ON v.Codvuz = e.Codvuz
+            LEFT JOIN Grnti g ON g.Codrub = substr(e.Grnti, 1, 2);
+            """;
+            cmd.ExecuteNonQuery();
+        }
+
+        public List<FullModel> GetAll()
+        {
+            var list = new List<FullModel>();
+
+            var rubrics = new Dictionary<string, string>();
+            using (var conn = _factory.Create())
+            {
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT Codrub, Rubrika FROM Grnti;";
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var cod = r.GetStringOrNull(0);
+                    var name = r.GetStringOrNull(1);
+                    if (!string.IsNullOrWhiteSpace(cod))
+                        rubrics[cod.Trim()] = name ?? "";
+                }
+            }
+
+            using (var conn = _factory.Create())
+            {
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+            SELECT
+                ExhibitId, Codvuz, Z2, Type, Regnumber, Subject, Grnti,
+                Bossname, Bosstitle, Exhitype, Vystavki, Exponat,
+                VuzId, Z1, Z1Full, Region, City, Status, Obl, OblName, GrVed, Prof,
+                GrntiId, Codrub, Rubrika
+            FROM AllDataView;
+            """;
+
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var grntiRaw = r.GetStringOrNull(6);
+
+                    var codes = ExtractMainCodes(grntiRaw);
+
+                    var rubrikas = codes.Select(c => rubrics.TryGetValue(c, out var n) ? n : null)
+                        .Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+
+                    list.Add(new FullModel
+                    {
+                        Id = r.GetInt64(0),
+                        Codvuz = r.GetStringOrNull(1),
+                        Z2 = r.GetStringOrNull(2),
+                        Type = r.GetStringOrNull(3),
+                        Regnumber = r.GetStringOrNull(4),
+                        Subject = r.GetStringOrNull(5),
+                        Grnti = grntiRaw,
+                        Bossname = r.GetStringOrNull(7),
+                        Bosstitle = r.GetStringOrNull(8),
+                        Exhitype = r.GetStringOrNull(9),
+                        Vystavki = r.GetStringOrNull(10),
+                        Exponat = r.GetStringOrNull(11),
+                        Z1 = r.GetStringOrNull(13),
+                        Z1Full = r.GetStringOrNull(14),
+                        Region = r.GetStringOrNull(15),
+                        City = r.GetStringOrNull(16),
+                        Status = r.GetStringOrNull(17),
+                        Obl = r.GetStringOrNull(18),
+                        OblName = r.GetStringOrNull(19),
+                        GrVed = r.GetStringOrNull(20),
+                        Prof = r.GetStringOrNull(21),
+                        Codrub = string.Join("; ", codes),
+                        Rubrika = string.Join("; ", rubrikas),
+                    });
+                }
+            }
+
+            return list;
+        }
+
+        private static List<string> ExtractMainCodes(string? raw)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(raw)) return result;
+            var parts = raw.Split(new[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var trimmed = part.Trim();
+                if (trimmed.Length >= 2 && char.IsDigit(trimmed[0]) && char.IsDigit(trimmed[1]))
+                {
+                    var code = trimmed.Substring(0, 2);
+                    if (!result.Contains(code))
+                        result.Add(code);
+                }
+            }
+            return result;
+        }
     }
 }
 </file>
@@ -2746,170 +3106,144 @@ namespace SQLWerk.Data.Sqlite
 }
 </file>
 
-<file path="SQLWerk/Models/FullModel.cs">
+<file path="SQLWerk/Services/CrossValidationService.cs">
+using Microsoft.Extensions.Logging;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 
-namespace SQLWerk.Models
+namespace SQLWerk.Services
 {
-    public class FullModel
+    public class CrossValidationService
     {
-        public long Id { get; set; }
+        private readonly ILogger<CrossValidationService> _logger;
 
-        public string? Codvuz { get; set; }
-        public string? Z2 { get; set; }
-        public string? Type { get; set; }
-        public string? Regnumber { get; set; }
-        public string? Subject { get; set; }
-        public string? Grnti { get; set; }
-        public string? Bossname { get; set; }
-        public string? Bosstitle { get; set; }
-        public string? Exhitype { get; set; }
-        public string? Vystavki { get; set; }
-        public string? Exponat { get; set; }
+        public CrossValidationService(ILogger<CrossValidationService> logger) => _logger = logger;
 
-        public string? Z1 { get; set; }
-        public string? Z1Full { get; set; }
-        public string? Region { get; set; }
-        public string? City { get; set; }
-        public string? Status { get; set; }
-        public string? Obl { get; set; }
-        public string? OblName { get; set; }
-        public string? GrVed { get; set; }
-        public string? Prof { get; set; }
+        public int RemoveInvalidExhibits(
+            IExhibitRepository exhibitRepo,
+            IVuzRepository vuzRepo,
+            IGrntiRepository grntiRepo)
+        {
+            var validCodvuz = vuzRepo.GetAll()
+                .Where(v => !string.IsNullOrWhiteSpace(v.Codvuz)
+                         && !string.IsNullOrWhiteSpace(v.Z1Full))
+                .Select(v => v.Codvuz!.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        public string? Codrub { get; set; }
-        public string? Rubrika { get; set; }
+            var validRubrics = grntiRepo.GetAll()
+                .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
+                .Select(g => ExtractRubric(g.Codrub!))
+                .Where(r => r.Length == 2)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var exhibits = exhibitRepo.GetAll();
+            var kept = new List<ExhibitTableRow>(exhibits.Count);
+            int removed = 0;
+
+            foreach (var e in exhibits)
+            {
+                var issues = new List<string>();
+
+                var cod = e.Codvuz?.Trim() ?? "";
+                if (cod.Length == 0)
+                    issues.Add("пустой код ВУЗа");
+                else if (!validCodvuz.Contains(cod))
+                    issues.Add($"ВУЗ с кодом '{cod}' не найден");
+
+                var missing = GetMissingRubrics(e.Grnti, validRubrics);
+                if (missing.Count > 0)
+                    issues.Add($"рубрики ГРНТИ не найдены: {string.Join(", ", missing)}");
+
+                if (issues.Count == 0)
+                {
+                    kept.Add(e);
+                }
+                else
+                {
+                    removed++;
+                    _logger.LogWarning(
+                        "Выставка {Id} удалена. Причина: {Reason}",
+                        e.Id, string.Join("; ", issues));
+                }
+            }
+
+            if (removed > 0)
+            {
+                exhibitRepo.Clear();
+                exhibitRepo.SaveAll(kept);
+            }
+
+            return removed;
+        }
+
+        private static string ExtractRubric(string code)
+        {
+            var trimmed = code.Trim();
+            return trimmed.Length >= 2 ? trimmed.Substring(0, 2) : trimmed;
+        }
+
+        private static List<string> GetMissingRubrics(string? grntiString, HashSet<string> valid)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(grntiString)) return result;
+
+            var parts = grntiString.Split(
+                new[] { ',', ';' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var part in parts)
+            {
+                var rubric = ExtractRubric(part);
+                if (rubric.Length == 2
+                    && !valid.Contains(rubric)
+                    && !result.Contains(rubric))
+                {
+                    result.Add(rubric);
+                }
+            }
+            return result;
+        }
     }
 }
-</file>
-
-<file path="SQLWerk/ViewModels/LogViewModel.cs">
-using System;
-using System.Collections.ObjectModel;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using System.Text;
-using SQLWerk.Services;
-
-namespace SQLWerk.ViewModels;
-
-public partial class LogViewModel : ObservableObject
-{
-    private readonly InMemoryLoggerProvider _provider;
-
-    [ObservableProperty] private ObservableCollection<LogEntry> _entries = new();
-    [ObservableProperty] private string _logText = "";
-    [ObservableProperty] private string _summary = "";
-
-    public LogViewModel(InMemoryLoggerProvider provider)
-    {
-        _provider = provider;
-        _provider.Changed += (_, _) => Refresh();
-        Refresh();
-    }
-
-    private void Refresh()
-    {
-        var sb = new StringBuilder();
-        foreach (var e in _provider.Entries)
-            sb.AppendLine($"{e.Time:HH:mm:ss} [{e.Level}] {e.Message}");
-
-        LogText = sb.ToString();
-        Summary = $"Записей: {_provider.Entries.Count}";
-    }
-
-    [RelayCommand]
-    private void Clear() => _provider.Clear();
-}
-</file>
-
-<file path="SQLWerk/ViewModels/MainViewModel.cs">
-using CommunityToolkit.Mvvm.ComponentModel;
-
-namespace SQLWerk.ViewModels;
-
-public partial class MainViewModel : ViewModelBase
-{
-    [ObservableProperty]
-    public partial string Greeting { get; set; } = "Welcome to Avalonia!";
-}
-</file>
-
-<file path="SQLWerk/ViewModels/ViewModelBase.cs">
-using CommunityToolkit.Mvvm.ComponentModel;
-
-namespace SQLWerk.ViewModels;
-
-public abstract class ViewModelBase : ObservableObject
-{
-}
-</file>
-
-<file path="SQLWerk/Views/LogWindow.axaml">
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:SQLWerk.ViewModels"
-        x:Class="SQLWerk.Views.LogWindow"
-        x:DataType="vm:LogViewModel"
-        Width="800" Height="500"
-        Title="Журнал">
-    <DockPanel>
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="8">
-            <Button Content="Очистить" Command="{Binding ClearCommand}"/>
-            <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Margin="12,0,0,0"/>
-        </StackPanel>
-
-        <TextBox Text="{Binding LogText}"
-                 IsReadOnly="True"
-                 AcceptsReturn="True"
-                 TextWrapping="Wrap"
-                 FontFamily="Consolas"
-                 FontSize="12"
-                 BorderThickness="0"
-                 Background="Transparent"/>
-    </DockPanel>
-</Window>
-</file>
-
-<file path="SQLWerk/app.manifest">
-<?xml version="1.0" encoding="utf-8"?>
-<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <!-- This manifest is used on Windows only.
-       Don't remove it as it might cause problems with window transparency and embedded controls.
-       For more details visit https://learn.microsoft.com/en-us/windows/win32/sbscs/application-manifests -->
-  <assemblyIdentity version="1.0.0.0" name="SQLWerk.Desktop"/>
-
-  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
-    <application>
-      <!-- A list of the Windows versions that this application has been tested on
-           and is designed to work with. Uncomment the appropriate elements
-           and Windows will automatically select the most compatible environment. -->
-
-      <!-- Windows 10 -->
-      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
-    </application>
-  </compatibility>
-</assembly>
 </file>
 
 <file path="SQLWerk/Program.cs">
 using Avalonia;
 using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace SQLWerk;
 
 sealed class Program
 {
-    // Initialization code. Don't use any Avalonia, third-party APIs or any
-    // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
-    // yet and stuff might break.
-    [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    private const string MutexName = "com.sqlwerk.app.singleinstance";
 
-    // Avalonia configuration, don't remove; also used by visual designer.
+    [STAThread]
+    public static void Main(string[] args)
+    {
+        using var mutex = new Mutex(false, MutexName);
+
+        if (!mutex.WaitOne(0))
+        {
+            ActivateExistingInstance();
+            return;
+        }
+
+        try
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
+    }
+
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
@@ -2918,179 +3252,92 @@ sealed class Program
 #endif
             .WithInterFont()
             .LogToTrace();
-}
-</file>
 
-<file path="SQLWerk/ViewLocator.cs">
-using System;
-using System.Diagnostics.CodeAnalysis;
-using Avalonia.Controls;
-using Avalonia.Controls.Templates;
-using SQLWerk.ViewModels;
-
-namespace SQLWerk;
-
-/// <summary>
-/// Given a view model, returns the corresponding view if possible.
-/// </summary>
-[RequiresUnreferencedCode(
-    "Default implementation of ViewLocator involves reflection which may be trimmed away.",
-    Url = "https://docs.avaloniaui.net/docs/concepts/view-locator")]
-public class ViewLocator : IDataTemplate
-{
-    public Control? Build(object? param)
+    private static void ActivateExistingInstance()
     {
-        if (param is null)
-            return null;
-        
-        var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
-        var type = Type.GetType(name);
+        if (!OperatingSystem.IsWindows())
+            return;
 
-        if (type != null)
+        var current = Process.GetCurrentProcess();
+        foreach (var p in Process.GetProcessesByName(current.ProcessName))
         {
-            return (Control)Activator.CreateInstance(type)!;
+            if (p.Id == current.Id || p.MainWindowHandle == IntPtr.Zero)
+                continue;
+
+            NativeMethods.ShowWindow(p.MainWindowHandle, NativeMethods.SW_RESTORE);
+            NativeMethods.SetForegroundWindow(p.MainWindowHandle);
+            break;
         }
-        
-        return new TextBlock { Text = "Not Found: " + name };
     }
 
-    public bool Match(object? data)
+    private static class NativeMethods
     {
-        return data is ViewModelBase;
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        public const int SW_RESTORE = 9;
     }
 }
 </file>
 
-<file path=".gitattributes">
-###############################################################################
-# Set default behavior to automatically normalize line endings.
-###############################################################################
-* text=auto
+<file path="READMEYARIK.md">
+Для импорта из экселя предлагаю использовать ClosedXML, дипсик говорит по ней (что главное) больше документации. Единственный момент - придется конвертировать наш старый xls в xlsx, попробовал, вроде ниче не ломается, 
+делается просто через эксель. Альтернативы либо платные, либо кислые.
+Как я понял суть библиотеки - просто копирует таблицу в свои объекты workbook, rows, row и т.д., и дальше можно просто обращаться к ячейкам, причем даже с указанием типа. Надо будет почитать какие конкретно ошибки выдает, если не 
+получается преобразование в тип, чтобы ловить потом.
 
-###############################################################################
-# Set default behavior for command prompt diff.
-#
-# This is need for earlier builds of msysgit that does not have it on by
-# default for csharp files.
-# Note: This is only used by command line
-###############################################################################
-#*.cs     diff=csharp
+Для БД уже договорились SQLite использовать. 
 
-###############################################################################
-# Set the merge driver for project and solution files
-#
-# Merging from the command prompt will add diff markers to the files if there
-# are conflicts (Merging from VS is not affected by the settings below, in VS
-# the diff markers are never inserted). Diff markers may cause the following 
-# file extensions to fail to load in VS. An alternative would be to treat
-# these files as binary and thus will always conflict and require user
-# intervention with every merge. To do so, just uncomment the entries below
-###############################################################################
-#*.sln       merge=binary
-#*.csproj    merge=binary
-#*.vbproj    merge=binary
-#*.vcxproj   merge=binary
-#*.vcproj    merge=binary
-#*.dbproj    merge=binary
-#*.fsproj    merge=binary
-#*.lsproj    merge=binary
-#*.wixproj   merge=binary
-#*.modelproj merge=binary
-#*.sqlproj   merge=binary
-#*.wwaproj   merge=binary
+VIEW, про который говорил Филатов, позволяет превратить результат выполнения запроса в таблицу, и дальше, вместо сложного запроса каждый раз, можно обращаться к отфильтрованным (в нашем случае - наоборот, совмещенным из разных таблиц)
+данным как к таблице. Редактировать нельзя, это только чтобы view (-_q).
 
-###############################################################################
-# behavior for image files
-#
-# image files are treated as binary by default.
-###############################################################################
-#*.jpg   binary
-#*.png   binary
-#*.gif   binary
+По поводу ключа - у нас нет ключей, они и не нужны. У нас нет таблиц, хранящих разные данные для одного и того же списка объектов, у нас принципиально разные данные в таблицах. Vyst_mo и VUZ связаны через 
+codvuz, Vyst_mo и grntirub - через поле codrub таблицы grntirub, оно же первые две цифры поля grnti из Vyst_mo. 
 
-###############################################################################
-# diff behavior for common document formats
-# 
-# Convert binary document formats to text before diffing them. This feature
-# is only available from the command line. Turn it on by uncommenting the 
-# entries below.
-###############################################################################
-#*.doc   diff=astextplain
-#*.DOC   diff=astextplain
-#*.docx  diff=astextplain
-#*.DOCX  diff=astextplain
-#*.dot   diff=astextplain
-#*.DOT   diff=astextplain
-#*.pdf   diff=astextplain
-#*.PDF   diff=astextplain
-#*.rtf   diff=astextplain
-#*.RTF   diff=astextplain
-</file>
+    Как будто данные из grntirub проще сразу слить в Vyst_mo и работать в БД с двумя таблицами уже.
+    В поле grnti могут быть несколько кодов, думаю не проблема, в соответствующее поле рубрики можно будет через запятую две рубрики записать.
+- НЕЛЬЗЯ!!! Если будет добавлена новая запись или просто новый код грнти, нужно будет найти соответствующее название предмета, 
+которого до этого могло и не быть, а в grntirub есть все. Оставляем 3 таблицы. И мысль тут оставляю, чтобы больше в голову не приходила.
 
-<file path="READMESAVINS.md">
-## Общее задание
+Проблема, что в grnti где-то разделитель запятая, где-то точка с запятой, где-то пробел, а еще бывает,
+что не три числа идут через точку, а только две. Формат, я думаю, должен быть xx.xx.xx, xx.xx.xx чтобы не видоизменять при выводе на экран. Где 2 числа оставляем тоже,
+когда не два и не три или не через точку сам код написан, предупреждаем, что код грнти неправильный и заносим, например, пустое поле, чтобы потом в самом приложении можно было исправить.
 
-Как я понимаю задание на следующую лабу (минимальное) - нам нужно
+Обработка кодов грнти, вроде на наших всех пашет
+```c#
+partial class Program
+{
+    public static void Main()
+    {
+        Console.Write("Введи код урод: ");
+        string? codestring = Console.ReadLine();
+        if (codestring != null)
+        {
+            codestring = codestring.Trim();
+            string[] codes = codestring.Split(new[] { ",", ";", " " }, StringSplitOptions.None);
 
-1. Загрузить данные из таблиц
-2. Как-то придумать их отображение, в каком виде оно будет
-3. Если мне не изменяет память еще и целостность данных и нормальное чтение надо обеспечить
-
-То есть наша задача на сейчас - взять самый простой UI с условным меню сверху, там, например, 4 пункта - 3 таблички и гайд по программе. Можно там отрисовать этот VIEW еще.
-
-## VIEW
-
-Что касается VIEW. Как я понимаю это какой-то запрос, написанный заранее, который отображается как результат этого запроса к другим таблицам. При этом в самом нем данные не хранятся, не могут быть изменены и в целом это как визуализация или модель не real deal.
-
-VIEW полезен для нас на данном этапе как минимум для того, чтобы сшить таблицы. Например написать
-
-```sqlite
-CREATE VIEW our_view AS
-SELECT ...
-FROM nir n
-LEFT JOIN vuz v ON ...(по какому то принципу)
-LEFT JOIN boss b ON ...
-
-(это пример я пока не думал)
+            for (int i = 0; i < codes.Length; i++)
+            {
+                codes[i] = codes[i].Trim();
+                if (!(Regex.IsMatch(codes[i], @"^\d{2}\.\d{2}\.\d{2}$") || Regex.IsMatch(codes[i], @"^\d{2}\.\d{2}$") || Regex.IsMatch(codes[i], @"^\d{2}$")))
+                {
+                    Console.WriteLine($"Не понял");
+                    return;
+                }
+            }
+            string coderesult = string.Join(", ", codes);
+            Console.WriteLine($"Понял, значит {coderesult}");
+            return;
+        }
+        Console.WriteLine($"Ну громче");
+    }
+}
 ```
-
-Как на писано на (m'lady) реддите "The simplest explanation is that it (view) is a saved query". -> [ссыль](https://www.reddit.com/r/SQL/comments/9vb5ch/what_exactly_is_a_sql_view/?show=original) .
-
-Возможно нам стоит еще и отображать все "правильно" но об этом ниже.
-
-## Связность таблиц
-
-Есть связь только общей таблицы со вспомогательными - связь между `Vyst_mo` и `VUZ` осуществляется только по значению codvuz - что важно, нам было сказано, что раз уж нет в таблице столбика "краткое наименование вуза", то ну и ладно, не надо его использовать и скорее всего отрисовывать в каком-то общем представлении тоже, так как это все таки лишний столбец.
-
-Между `Vyst_mo` и `grntirub` связь интересная. Я до сих пор не понимаю, почему нам даны названия целых тем с определенными цифрами (например, 02 - философия, но при этом 02.61.45 никак у философии не отсносится, так еще и стоит в нескольких строках по разным темам0). Сначала я думал, что ну может темы с одинаковым кодом хоть как-то связаны, но нет. Надо посмотреть насчет этого - нам говорил Полотнов, что "данные реальные и емуют смысл, а не просто перемешанные". Хм.
-
-В любом случае - ключей нет, просто связь по одному полю, а между `grntirub` и `VUZ` связи нет вовсе.
-
-## Обработка неконсистентных данных
-
-Это для меня понимается как самая основная наша задача на сейчас. Есть в целом несколько подходов, которые у меня на уме.
-
-1. Просто брать RAW таблицу, отрисовывать ее как есть, но программно обрабатывать разнообразные несоответсвия, введя их в код (например, закодить, что разделитель запятая, точка с запятой являются для программы одним и тем же).
-Плюсов такого подхода я вижу только два - мы показываем что ориг. данные не изменены, и нам не надо думать над рендером.
-Однако - у нас все еще данные выглядят грязно. Также я вижу здесь проблему пересчета данных каждый раз, потому что каждый раз наджо будет обращаться к условному классу "читателю", который умеет обрабатывать разные разделители.
-
-2. Брать RAW таблицу, оставлять ее как есть и потом просто рисовать "правильную" у нас в программе. Причем именно это - не VIEW. Это действительно таблица, в которую, например, можно занести данные, они ериализуются там в xlsx когда сохраняешь.
-
-При любом из этих подходов могут быть данные полностью не поддающиеся каким-либо условиям. Тогда действия такие - не разрешаем записать, если человек пишет, и логируем и предупреждаем (например, подсветкой), если данные уже записаны и читаются с ошибками.
-
-## Ридер для xls
-
-Здесь могу предложить только два варианта. Первый - ExcelDataReader (бесплатный, работает с большими таблицами и с их обработкой, читает и xls и xlsx). Доки к нему есть на репозитории : [ссыль](https://github.com/ExcelDataReader/ExcelDataReader)
-
-Второй - ClosedXML. Он, якобы, медленный (я это нашел на нескольких сайтах). Но он легче немног очем ExcelDataReader. Также кто-то говорил, не найду ссылку, что там есть какой-то колхоз с некоторыми даже простыми действиями над таблицей. Но у нас она маленькая, может потянет все
-
-Документация есть на отдельном сайте и она приятная : [Документация ClosedXML](https://docs.closedxml.io/en/latest/).
-</file>
-
-<file path="SQLWerk.slnx">
-<Solution>
-  <Project Path="SQLWerk/SQLWerk.csproj" />
-</Solution>
 </file>
 
 <file path="SQLWerk/Data/Sqlite/ExhibitRepository.cs">
@@ -3269,150 +3516,6 @@ namespace SQLWerk.Data.Sqlite
 }
 </file>
 
-<file path="SQLWerk/Data/Sqlite/FullDataRepository.cs">
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Data.Extensions;
-using SQLWerk.Models;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace SQLWerk.Data.Sqlite
-{
-    internal class FullDataRepository : IFullDataRepository
-    {
-        private readonly IConnectionFactory _factory;
-
-        public FullDataRepository(IConnectionFactory factory) => _factory = factory;
-
-        public void EnsureCreated()
-        {
-            using var conn = _factory.Create();
-            conn.Open();
-
-            using (var drop = conn.CreateCommand())
-            {
-                drop.CommandText = "DROP VIEW IF EXISTS AllDataView;";
-                drop.ExecuteNonQuery();
-            }
-
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-            CREATE VIEW AllDataView AS
-            SELECT
-            e.Id           AS ExhibitId,
-            e.Codvuz, v.Z2, e.Type, e.Regnumber, e.Subject, e.Grnti,
-            e.Bossname, e.Bosstitle, e.Exhitype, e.Vystavki, e.Exponat,
-
-            v.Id           AS VuzId,
-            v.Z1, v.Z1Full, v.Region, v.City, v.Status,
-            v.Obl, v.OblName, v.GrVed, v.Prof,
-
-            g.Id           AS GrntiId,
-            g.Codrub,
-            g.Rubrika
-            FROM Exhibits e
-            LEFT JOIN Vuz   v ON v.Codvuz = e.Codvuz
-            LEFT JOIN Grnti g ON g.Codrub = substr(e.Grnti, 1, 2);
-            """;
-            cmd.ExecuteNonQuery();
-        }
-
-        public List<FullModel> GetAll()
-        {
-            var list = new List<FullModel>();
-
-            var rubrics = new Dictionary<string, string>();
-            using (var conn = _factory.Create())
-            {
-                conn.Open();
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT Codrub, Rubrika FROM Grnti;";
-                using var r = cmd.ExecuteReader();
-                while (r.Read())
-                {
-                    var cod = r.GetStringOrNull(0);
-                    var name = r.GetStringOrNull(1);
-                    if (!string.IsNullOrWhiteSpace(cod))
-                        rubrics[cod.Trim()] = name ?? "";
-                }
-            }
-
-            using (var conn = _factory.Create())
-            {
-                conn.Open();
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = """
-            SELECT
-                ExhibitId, Codvuz, Z2, Type, Regnumber, Subject, Grnti,
-                Bossname, Bosstitle, Exhitype, Vystavki, Exponat,
-                VuzId, Z1, Z1Full, Region, City, Status, Obl, OblName, GrVed, Prof,
-                GrntiId, Codrub, Rubrika
-            FROM AllDataView;
-            """;
-
-                using var r = cmd.ExecuteReader();
-                while (r.Read())
-                {
-                    var grntiRaw = r.GetStringOrNull(6);
-
-                    var codes = ExtractMainCodes(grntiRaw);
-
-                    var rubrikas = codes.Select(c => rubrics.TryGetValue(c, out var n) ? n : null)
-                        .Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
-
-                    list.Add(new FullModel
-                    {
-                        Id = r.GetInt64(0),
-                        Codvuz = r.GetStringOrNull(1),
-                        Z2 = r.GetStringOrNull(2),
-                        Type = r.GetStringOrNull(3),
-                        Regnumber = r.GetStringOrNull(4),
-                        Subject = r.GetStringOrNull(5),
-                        Grnti = grntiRaw,
-                        Bossname = r.GetStringOrNull(7),
-                        Bosstitle = r.GetStringOrNull(8),
-                        Exhitype = r.GetStringOrNull(9),
-                        Vystavki = r.GetStringOrNull(10),
-                        Exponat = r.GetStringOrNull(11),
-                        Z1 = r.GetStringOrNull(13),
-                        Z1Full = r.GetStringOrNull(14),
-                        Region = r.GetStringOrNull(15),
-                        City = r.GetStringOrNull(16),
-                        Status = r.GetStringOrNull(17),
-                        Obl = r.GetStringOrNull(18),
-                        OblName = r.GetStringOrNull(19),
-                        GrVed = r.GetStringOrNull(20),
-                        Prof = r.GetStringOrNull(21),
-                        Codrub = string.Join("; ", codes),
-                        Rubrika = string.Join("; ", rubrikas),
-                    });
-                }
-            }
-
-            return list;
-        }
-
-        private static List<string> ExtractMainCodes(string? raw)
-        {
-            var result = new List<string>();
-            if (string.IsNullOrEmpty(raw)) return result;
-            var parts = raw.Split(new[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries);
-            foreach (var part in parts)
-            {
-                var trimmed = part.Trim();
-                if (trimmed.Length >= 2 && char.IsDigit(trimmed[0]) && char.IsDigit(trimmed[1]))
-                {
-                    var code = trimmed.Substring(0, 2);
-                    if (!result.Contains(code))
-                        result.Add(code);
-                }
-            }
-            return result;
-        }
-    }
-}
-</file>
-
 <file path="SQLWerk/Services/ValidationService.cs">
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
@@ -3443,7 +3546,7 @@ namespace SQLWerk.Services
                 issues.Add("Пустое поле Кода Вуза");
             if (string.IsNullOrEmpty(row.Grnti)) 
                 issues.Add("Пустое поле ГРНТИ");
-            if (!GrntiService.IsAllValid(row.Grnti))
+            else if (!GrntiService.IsAllValid(row.Grnti))
                 issues.Add($"Некорректный грнти: {row.Grnti}");
 
             return issues.Count == 0
@@ -3598,61 +3701,6 @@ public partial class MainWindow : Window
         return await dlg.ShowDialog<ExhibitTableRow?>(this);
     }
 }
-</file>
-
-<file path="READMEYARIK.md">
-Для импорта из экселя предлагаю использовать ClosedXML, дипсик говорит по ней (что главное) больше документации. Единственный момент - придется конвертировать наш старый xls в xlsx, попробовал, вроде ниче не ломается, 
-делается просто через эксель. Альтернативы либо платные, либо кислые.
-Как я понял суть библиотеки - просто копирует таблицу в свои объекты workbook, rows, row и т.д., и дальше можно просто обращаться к ячейкам, причем даже с указанием типа. Надо будет почитать какие конкретно ошибки выдает, если не 
-получается преобразование в тип, чтобы ловить потом.
-
-Для БД уже договорились SQLite использовать. 
-
-VIEW, про который говорил Филатов, позволяет превратить результат выполнения запроса в таблицу, и дальше, вместо сложного запроса каждый раз, можно обращаться к отфильтрованным (в нашем случае - наоборот, совмещенным из разных таблиц)
-данным как к таблице. Редактировать нельзя, это только чтобы view (-_q).
-
-По поводу ключа - у нас нет ключей, они и не нужны. У нас нет таблиц, хранящих разные данные для одного и того же списка объектов, у нас принципиально разные данные в таблицах. Vyst_mo и VUZ связаны через 
-codvuz, Vyst_mo и grntirub - через поле codrub таблицы grntirub, оно же первые две цифры поля grnti из Vyst_mo. 
-
-    Как будто данные из grntirub проще сразу слить в Vyst_mo и работать в БД с двумя таблицами уже.
-    В поле grnti могут быть несколько кодов, думаю не проблема, в соответствующее поле рубрики можно будет через запятую две рубрики записать.
-- НЕЛЬЗЯ!!! Если будет добавлена новая запись или просто новый код грнти, нужно будет найти соответствующее название предмета, 
-которого до этого могло и не быть, а в grntirub есть все. Оставляем 3 таблицы. И мысль тут оставляю, чтобы больше в голову не приходила.
-
-Проблема, что в grnti где-то разделитель запятая, где-то точка с запятой, где-то пробел, а еще бывает,
-что не три числа идут через точку, а только две. Формат, я думаю, должен быть xx.xx.xx, xx.xx.xx чтобы не видоизменять при выводе на экран. Где 2 числа оставляем тоже,
-когда не два и не три или не через точку сам код написан, предупреждаем, что код грнти неправильный и заносим, например, пустое поле, чтобы потом в самом приложении можно было исправить.
-
-Обработка кодов грнти, вроде на наших всех пашет
-```c#
-partial class Program
-{
-    public static void Main()
-    {
-        Console.Write("Введи код урод: ");
-        string? codestring = Console.ReadLine();
-        if (codestring != null)
-        {
-            codestring = codestring.Trim();
-            string[] codes = codestring.Split(new[] { ",", ";", " " }, StringSplitOptions.None);
-
-            for (int i = 0; i < codes.Length; i++)
-            {
-                codes[i] = codes[i].Trim();
-                if (!(Regex.IsMatch(codes[i], @"^\d{2}\.\d{2}\.\d{2}$") || Regex.IsMatch(codes[i], @"^\d{2}\.\d{2}$") || Regex.IsMatch(codes[i], @"^\d{2}$")))
-                {
-                    Console.WriteLine($"Не понял");
-                    return;
-                }
-            }
-            string coderesult = string.Join(", ", codes);
-            Console.WriteLine($"Понял, значит {coderesult}");
-            return;
-        }
-        Console.WriteLine($"Ну громче");
-    }
-}
-```
 </file>
 
 <file path="SQLWerk/App.axaml">
@@ -4065,8 +4113,8 @@ namespace SQLWerk.Models
 
         public void FillTable(IExcelDataReader r)
         {
-            Codrub = ExcelReader.Get(r, 0).Trim();
-            Rubrika = ExcelReader.Get(r, 1).Trim();
+            Codrub = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Rubrika = ExcelReader.Get(r, 1)?.Trim() ?? "";
         }
     }
 }
@@ -4106,17 +4154,17 @@ namespace SQLWerk.Models
 
         public void FillTable(IExcelDataReader r)
         {
-            Codvuz = ExcelReader.Get(r, 0).Trim();
-            Z1 = ExcelReader.Get(r, 1).Trim();
-            Z1Full = ExcelReader.Get(r, 2).Trim();
-            Z2 = ExcelReader.Get(r, 3).Trim();
-            Region = ExcelReader.Get(r, 4).Trim();
-            City = ExcelReader.Get(r, 5).Trim();
-            Status = ExcelReader.Get(r, 6).Trim();
-            Obl = ExcelReader.Get(r, 7).Trim();
-            OblName = ExcelReader.Get(r, 8).Trim();
-            GrVed = ExcelReader.Get(r, 9).Trim();
-            Prof = ExcelReader.Get(r, 10).Trim();
+            Codvuz = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Z1 = ExcelReader.Get(r, 1)?.Trim() ?? "";
+            Z1Full = ExcelReader.Get(r, 2)?.Trim() ?? "";
+            Z2 = ExcelReader.Get(r, 3)?.Trim() ?? "";
+            Region = ExcelReader.Get(r, 4)?.Trim() ?? "";
+            City = ExcelReader.Get(r, 5)?.Trim() ?? "";
+            Status = ExcelReader.Get(r, 6)?.Trim() ?? "";
+            Obl = ExcelReader.Get(r, 7)?.Trim() ?? "";
+            OblName = ExcelReader.Get(r, 8)?.Trim() ?? "";
+            GrVed = ExcelReader.Get(r, 9)?.Trim() ?? "";
+            Prof = ExcelReader.Get(r, 10)?.Trim() ?? "";
         }
     }
 }
@@ -4156,93 +4204,17 @@ namespace SQLWerk.Models
 
         public void FillTable(IExcelDataReader r)
         {
-            Codvuz = ExcelReader.Get(r, 0).Trim();
-            Z2 = ExcelReader.Get(r, 1).Trim();
-            Type = ExcelReader.Get(r, 2).Trim();
-            Regnumber = ExcelReader.Get(r, 3).Trim();
-            Subject = ExcelReader.Get(r, 4).Trim();
-            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5));
-            Bossname = ExcelReader.Get(r, 6).Trim();
-            Bosstitle = ExcelReader.Get(r, 7).Trim();
-            Exhitype = ExcelReader.Get(r, 8).Trim();
-            Vystavki = ExcelReader.Get(r, 9).Trim();
-            Exponat = ExcelReader.Get(r, 10).Trim();
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Services/ExcelReader.cs">
-using ExcelDataReader;
-using Microsoft.Extensions.Logging;
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Text;
-
-namespace SQLWerk.Services
-{
-    public class ExcelReader : IExcelReader
-    {
-        private readonly ILogger<ExcelReader> _logger;
-        static ExcelReader()
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
-
-        public ExcelReader(ILogger<ExcelReader> logger) => _logger = logger;
-
-        public List<T> Parse<T>(string filePath) where T : ITableRow, new()
-        {
-            var result = new List<T>();
-            var fileName = Path.GetFileName(filePath);
-
-            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
-            using var reader = ExcelReaderFactory.CreateReader(stream);
-            reader.Read();
-
-            int rowNumber = 1;
-            while (reader.Read())
-            {
-                rowNumber++;
-                var row = new T();
-                row.FillTable(reader);
-
-                var (ok, reason) = ValidationService.Validate(row);
-                if (ok) result.Add(row);
-                else
-                    _logger.LogWarning(
-                        "Строка {Row} в файле {File} удалена. Причина: {Reason}",
-                        rowNumber, fileName, reason ?? "—");
-            }
-
-            return result;
-        }
-
-        internal static string? Get(IExcelDataReader reader, int idx)
-        {
-            if (idx >= reader.FieldCount) return null;
-
-            var v = reader.GetValue(idx);
-            return v?.ToString();
-        }
-
-        public string[] GetHeaders(string filePath)
-        {
-            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
-            using var reader = ExcelReaderFactory.CreateReader(stream);
-
-            if (!reader.Read()) return Array.Empty<string>();
-
-            var headers = new string[reader.FieldCount];
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                headers[i] = reader.GetValue(i)?.ToString()?.Trim() ?? "";
-            }
-            return headers;
+            Codvuz = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Z2 = ExcelReader.Get(r, 1)?.Trim() ?? "";
+            Type = ExcelReader.Get(r, 2)?.Trim() ?? "";
+            Regnumber = ExcelReader.Get(r, 3)?.Trim() ?? "";
+            Subject = ExcelReader.Get(r, 4)?.Trim() ?? "";
+            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5)) ?? "";
+            Bossname = ExcelReader.Get(r, 6)?.Trim() ?? "";
+            Bosstitle = ExcelReader.Get(r, 7)?.Trim() ?? "";
+            Exhitype = ExcelReader.Get(r, 8)?.Trim() ?? "";
+            Vystavki = ExcelReader.Get(r, 9)?.Trim() ?? "";
+            Exponat = ExcelReader.Get(r, 10)?.Trim() ?? "";
         }
     }
 }
@@ -4298,6 +4270,82 @@ namespace SQLWerk.Services
     <Folder Include="Styles\" />
   </ItemGroup>
 </Project>
+</file>
+
+<file path="SQLWerk/Services/ExcelReader.cs">
+using ExcelDataReader;
+using Microsoft.Extensions.Logging;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    public class ExcelReader : IExcelReader
+    {
+        private readonly ILogger<ExcelReader> _logger;
+        static ExcelReader()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        }
+
+        public ExcelReader(ILogger<ExcelReader> logger) => _logger = logger;
+
+        public List<T> Parse<T>(string filePath) where T : ITableRow, new()
+        {
+            var result = new List<T>();
+            var fileName = Path.GetFileName(filePath);
+
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+            reader.Read();
+
+            int rowNumber = 1;
+            while (reader.Read())
+            {
+                rowNumber++;
+                var row = new T();
+                row.FillTable(reader);
+
+                var (ok, reason) = ValidationService.Validate(row);
+                if (ok) result.Add(row);
+                else
+                    _logger.LogWarning(
+                        "Строка {Row} из файла {File} не добавлена в базу данных. Причина: {Reason}",
+                        rowNumber, fileName, reason ?? "—");
+            }
+
+            return result;
+        }
+
+        internal static string? Get(IExcelDataReader reader, int idx)
+        {
+            if (idx >= reader.FieldCount) return null;
+
+            var v = reader.GetValue(idx);
+            return v?.ToString();
+        }
+
+        public string[] GetHeaders(string filePath)
+        {
+            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+
+            if (!reader.Read()) return Array.Empty<string>();
+
+            var headers = new string[reader.FieldCount];
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                headers[i] = reader.GetValue(i)?.ToString()?.Trim() ?? "";
+            }
+            return headers;
+        }
+    }
+}
 </file>
 
 <file path="SQLWerk/Services/GrntiService.cs">
@@ -4542,90 +4590,119 @@ public partial class App : Application
 			</Menu>
 
 			<Border Background="#EFEFEF" Padding="8,4">
-    <Grid ColumnDefinitions="*,Auto,Auto">
-        <TextBlock Grid.Column="0"
-                   Text="{Binding Status}"
-                   VerticalAlignment="Center" />
+				<Grid ColumnDefinitions="*,Auto,Auto">
+					<TextBlock Grid.Column="0"
+							   Text="{Binding Status}"
+							   VerticalAlignment="Center" />
 
-        <TextBlock Grid.Column="1"
-                   Text="{Binding WarningCount, StringFormat='Проблем: {0}'}"
-                   VerticalAlignment="Center"
-                   Margin="0,0,8,0" />
+					<TextBlock Grid.Column="1"
+							   Text="{Binding WarningCount, StringFormat='Предупреждений: {0}'}"
+							   VerticalAlignment="Center"
+							   Margin="0,0,8,0" />
 
-        <Button Grid.Column="2"
-                Content="Журнал"
-                Classes.blink="{Binding HasErrors}"
-                Command="{Binding ShowLogCommand}" />
-    </Grid>
-</Border>
+					<Button Grid.Column="2"
+							Content="Журнал"
+							Classes.blink="{Binding HasErrors}"
+							Command="{Binding ShowLogCommand}" />
+				</Grid>
+			</Border>
 		</StackPanel>
 
         <Grid>
 			<Grid IsVisible="{Binding ShowExhibits}" RowDefinitions="Auto,*">
-    <StackPanel Grid.Row="0" Orientation="Horizontal"
-                Spacing="8" Margin="8,8,8,0">
-        <Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
-        <Button Content="Изменить"
-                Command="{Binding EditExhibitCommand}"
-                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
-        <Button Content="Удалить"
-                Command="{Binding DeleteExhibitCommand}"
-                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
-    </StackPanel>
-
-			<DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
-				ItemsSource="{Binding Exhibits}"
-				AutoGenerateColumns="False" IsReadOnly="True">
-			</DataGrid>
-		</Grid>
-			<Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
-    <StackPanel Grid.Row="0" Orientation="Horizontal"
-                Spacing="8" Margin="8,8,8,0">
-        <Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
-        <Button Content="Изменить"
-                Command="{Binding EditVuzCommand}"
-                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
-        <Button Content="Удалить"
-                Command="{Binding DeleteVuzCommand}"
-                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
-    </StackPanel>
-
-    <DataGrid x:Name="VuzGrid" Grid.Row="1"
-              ItemsSource="{Binding Vuzes}"
-              AutoGenerateColumns="False" IsReadOnly="True">
-    </DataGrid>
-</Grid>
-            <Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
 				<StackPanel Grid.Row="0" Orientation="Horizontal"
-					Spacing="8" Margin="8,8,8,0">
-				<Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
-				<Button Content="Изменить"
-					Command="{Binding EditGrntiCommand}"
-					CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
-				<Button Content="Удалить"
-					Command="{Binding DeleteGrntiCommand}"
-					CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
-			</StackPanel>
+							Spacing="8" Margin="8,8,8,0">
+					<Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
+					<Button Content="Изменить"
+							Command="{Binding EditExhibitCommand}"
+							CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+					<Button Content="Удалить"
+							Command="{Binding DeleteExhibitCommand}"
+							CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+				</StackPanel>
 
-			<DataGrid x:Name="GrntiGrid"
-				Grid.Row="1"
-				ItemsSource="{Binding Grnti}"
-				AutoGenerateColumns="False"
-				IsReadOnly="True">
-			<DataGrid.Columns>
-				<DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
-				<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
-			</DataGrid.Columns>
-		</DataGrid>
-	</Grid>
-            <DataGrid ItemsSource="{Binding FullTable}"
-                AutoGenerateColumns="False"
-				IsVisible="{Binding ShowAll}"
-				IsReadOnly="True">
+				<DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
+						  ItemsSource="{Binding Exhibits}"
+						  AutoGenerateColumns="False"
+						  IsReadOnly="True">
+					<DataGrid.Columns>
+						<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+						<DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
+						<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+						<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+						<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+						<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+						<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+						<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+						<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+						<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+					</DataGrid.Columns>
+				</DataGrid>
+			</Grid>
+
+			<Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
+				<StackPanel Grid.Row="0" Orientation="Horizontal"
+							Spacing="8" Margin="8,8,8,0">
+					<Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
+					<Button Content="Изменить"
+							Command="{Binding EditVuzCommand}"
+							CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+					<Button Content="Удалить"
+							Command="{Binding DeleteVuzCommand}"
+							CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+				</StackPanel>
+
+				<DataGrid x:Name="VuzGrid" Grid.Row="1"
+						  ItemsSource="{Binding Vuzes}"
+						  AutoGenerateColumns="False"
+						  IsReadOnly="True">
+					<DataGrid.Columns>
+						<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+						<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+						<DataGridTextColumn Header="Полное наименование" Binding="{Binding Z1Full}" />
+						<DataGridTextColumn Header="Краткое наименование" Binding="{Binding Z2}" />
+						<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+						<DataGridTextColumn Header="Город" Binding="{Binding City}" />
+						<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+						<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+						<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+						<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+						<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+					</DataGrid.Columns>
+				</DataGrid>
+			</Grid>
+
+			<Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
+				<StackPanel Grid.Row="0" Orientation="Horizontal"
+							Spacing="8" Margin="8,8,8,0">
+					<Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
+					<Button Content="Изменить"
+							Command="{Binding EditGrntiCommand}"
+							CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+					<Button Content="Удалить"
+							Command="{Binding DeleteGrntiCommand}"
+							CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+				</StackPanel>
+
+				<DataGrid x:Name="GrntiGrid"
+						  Grid.Row="1"
+						  ItemsSource="{Binding Grnti}"
+						  AutoGenerateColumns="False"
+						  IsReadOnly="True">
+					<DataGrid.Columns>
+						<DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
+						<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
+					</DataGrid.Columns>
+				</DataGrid>
+			</Grid>
+
+			<DataGrid ItemsSource="{Binding FullTable}"
+					  AutoGenerateColumns="False"
+					  IsVisible="{Binding ShowAll}"
+					  IsReadOnly="True">
 				<DataGrid.Columns>
-					<DataGridTextColumn Header="Номер" Binding="{Binding Id}" />
-					<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
 					<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+					<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
 					<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
 					<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
 					<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
@@ -4937,10 +5014,7 @@ namespace SQLWerk.ViewModels
                 ReloadFromDatabase();
                 SelectExhibitsCommand.Execute(null);
 
-                SelectExhibitsCommand.Execute(null);
-                Status = removed > 0
-                    ? $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count} (удалено {removed} несопоставленных)"
-                    : $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
+                Status = $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
             }
             catch (Exception ex)
             {
@@ -4987,6 +5061,8 @@ namespace SQLWerk.ViewModels
             if (!ok) return;
 
             _grntiRepo.Delete(row.Id);
+            _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
+
             ReloadFromDatabase();
             SelectGrntiCommand.Execute(null);
             Status = $"Рубрика удалена: {row.Codrub} — {row.Rubrika}";
@@ -5029,8 +5105,8 @@ namespace SQLWerk.ViewModels
                 $"Все связанные выставки этого ВУЗа также будут удалены.");
             if (!ok) return;
 
-            _exhibitRepo.DeleteByCodvuz(row.Codvuz ?? "");
             _vuzRepo.Delete(row.Id);
+            _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
 
             ReloadFromDatabase();
             SelectVuzCommand.Execute(null);
@@ -5048,7 +5124,7 @@ namespace SQLWerk.ViewModels
             _exhibitRepo.Add(result);
             ReloadFromDatabase();
             SelectExhibitsCommand.Execute(null);
-            Status = $"Выставка добавлена (Id={result.Id})";
+            Status = $"Выставка с регистрационным номером {result.Regnumber} добавлена";
         }
 
         [RelayCommand]
@@ -5061,7 +5137,7 @@ namespace SQLWerk.ViewModels
             _exhibitRepo.Update(result);
             ReloadFromDatabase();
             SelectExhibitsCommand.Execute(null);
-            Status = $"Выставка изменена (Id={result.Id})";
+            Status = $"Выставка с регистрационным номером {result.Regnumber} изменена";
         }
 
         [RelayCommand]
@@ -5071,13 +5147,14 @@ namespace SQLWerk.ViewModels
 
             var ok = await ConfirmHandler(
                 "Удаление выставки",
-                $"Удалить выставку Id={row.Id} «{row.Subject}»?\nДействие необратимо.");
+                $"Удалить выставку с регистрационным номером {row.Regnumber} «{row.Subject}»?\nДействие необратимо.");
             if (!ok) return;
 
             _exhibitRepo.Delete(row.Id);
+
             ReloadFromDatabase();
             SelectExhibitsCommand.Execute(null);
-            Status = $"Выставка удалена (Id={row.Id})";
+            Status = $"Выставка с регистрационным номером {row.Regnumber} удалена";
         }
     }
 }

@@ -3,30 +3,34 @@ using CommunityToolkit.Mvvm.Input;
 using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Text.RegularExpressions;
 
 namespace SQLWerk.ViewModels;
 
 public partial class GrntiEditViewModel : ObservableObject
 {
+    public static HashSet<string> ExistingCodrub { get; set; } = new(StringComparer.Ordinal);
+
     [ObservableProperty] private string _title = "Добавление рубрики";
     [ObservableProperty] private string _codrub = "";
     [ObservableProperty] private string _rubrika = "";
     [ObservableProperty] private string _error = "";
 
+    public bool IsEditMode { get; private set; }
     public long Id { get; private set; }
-
-    
     public GrntiTableRow? Result { get; private set; }
-
     public event EventHandler? CloseRequested;
 
-    public GrntiEditViewModel() {  }
+    private string _oldCodrub = "";
+
+    public GrntiEditViewModel() { }
 
     public GrntiEditViewModel(GrntiTableRow row)
     {
+        IsEditMode = true;
         _title = "Изменение рубрики";
         Id = row.Id;
+        _oldCodrub = row.Codrub ?? "";
         _codrub = row.Codrub ?? "";
         _rubrika = row.Rubrika ?? "";
     }
@@ -35,8 +39,20 @@ public partial class GrntiEditViewModel : ObservableObject
     private void Save()
     {
         var issues = new List<string>();
-        if (string.IsNullOrWhiteSpace(Codrub)) issues.Add("Код рубрики обязателен");
-        if (string.IsNullOrWhiteSpace(Rubrika)) issues.Add("Наименование рубрики обязательно");
+
+        var cod = (Codrub ?? "").Trim();
+        var rub = (Rubrika ?? "").Trim();
+
+        if (cod.Length == 0) issues.Add("Не заполнен код рубрики");
+        else if (!Regex.IsMatch(cod, @"^\d{2}$"))
+            issues.Add("Код рубрики должен состоять из двух цифр");
+
+        if (rub.Length == 0) issues.Add("Не заполнено наименование рубрики");
+
+        if (cod.Length > 0
+            && ExistingCodrub.Contains(cod)
+            && !string.Equals(cod, _oldCodrub, StringComparison.Ordinal))
+            issues.Add($"Код рубрики '{cod}' уже существует");
 
         if (issues.Count > 0)
         {
@@ -47,8 +63,8 @@ public partial class GrntiEditViewModel : ObservableObject
         Result = new GrntiTableRow
         {
             Id = Id,
-            Codrub = Codrub.Trim(),
-            Rubrika = Rubrika.Trim()
+            Codrub = cod,
+            Rubrika = rub
         };
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }

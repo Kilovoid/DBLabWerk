@@ -3,12 +3,15 @@
         xmlns:vm="using:SQLWerk.ViewModels"
         x:Class="SQLWerk.Views.GrntiEditWindow"
         x:DataType="vm:GrntiEditViewModel"
-        Width="420" Height="240"
+        Width="420" Height="260"
         WindowStartupLocation="CenterOwner"
         Title="{Binding Title}">
     <StackPanel Margin="16" Spacing="8">
-        <TextBlock Text="Код рубрики *"/>
-        <TextBox Text="{Binding Codrub}"/>
+        <TextBlock Text="Код рубрики * (2 цифры)"/>
+        <TextBox Text="{Binding Codrub}"
+                 IsReadOnly="{Binding IsEditMode}"
+                 MaxLength="2"
+                 Watermark="например: 02"/>
 
         <TextBlock Text="Наименование рубрики *"/>
         <TextBox Text="{Binding Rubrika}"/>
