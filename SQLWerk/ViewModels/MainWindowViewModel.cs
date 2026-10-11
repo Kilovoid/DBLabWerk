@@ -52,6 +52,8 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private bool _showVuz;
         [ObservableProperty] private bool _showGrnti;
         [ObservableProperty] private bool _showAll;
+        [ObservableProperty] private bool _showErrorScreen;
+        [ObservableProperty] private string _errorScreenText = "";
 
         public event EventHandler? ShowLogRequested;
         public Func<GrntiTableRow?, Task<GrntiTableRow?>>? GrntiEditHandler { get; set; }
@@ -148,6 +150,8 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectExhibits()
         {
+            CloseErrorScreenIfOpen();
+
             ShowExhibits = true;
             ShowVuz = false;
             ShowGrnti = false;
@@ -160,6 +164,8 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectVuz()
         {
+            CloseErrorScreenIfOpen();
+
             ShowExhibits = false;
             ShowVuz = true;
             ShowGrnti = false;
@@ -172,6 +178,8 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectGrnti()
         {
+            CloseErrorScreenIfOpen();
+
             ShowExhibits = false;
             ShowVuz = false;
             ShowAll = false;
@@ -184,6 +192,8 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectFull()
         {
+            CloseErrorScreenIfOpen();
+
             ShowAll = true;
             ShowExhibits = false;
             ShowGrnti = false;
@@ -280,7 +290,16 @@ namespace SQLWerk.ViewModels
                     _exhibitRepo, _vuzRepo, _grntiRepo);
 
                 ReloadFromDatabase();
-                SelectExhibitsCommand.Execute(null);
+
+                if (_logProvider.HasWarnings)
+                {
+                    ErrorScreenText = BuildErrorScreenText();
+                    ShowErrorScreen = true;
+                }
+                else
+                {
+                    SelectExhibitsCommand.Execute(null);
+                }
 
                 Status = $"Загружено: Выставки={Exhibits.Count}, ВУЗы={Vuzes.Count}, ГРНТИ={Grnti.Count}";
             }
@@ -381,7 +400,6 @@ namespace SQLWerk.ViewModels
             Status = $"ВУЗ удалён: {row.Codvuz}";
         }
 
-        // ---------- Выставки ----------
         [RelayCommand]
         private async Task AddExhibitAsync()
         {
@@ -411,6 +429,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         private async Task DeleteExhibitAsync(ExhibitTableRow? row)
         {
+            //WarningCount = 0;
             if (ConfirmHandler is null || row is null) return;
 
             var ok = await ConfirmHandler(
@@ -424,6 +443,27 @@ namespace SQLWerk.ViewModels
             SelectExhibitsCommand.Execute(null);
             Status = $"Выставка с регистрационным номером {row.Regnumber} удалена";
         }
+
+        private void CloseErrorScreenIfOpen()
+        {
+            if (!ShowErrorScreen) return;
+            ShowErrorScreen = false;
+            ErrorScreenText = string.Empty; // освобождаем текст из памяти
+        }
+
+        private string BuildErrorScreenText()
+        {
+            var sb = new StringBuilder();
+            foreach (var e in _logProvider.Entries)
+            {
+                if (e.Level < LogLevel.Warning) continue;
+                sb.AppendLine($"{e.Message}");
+            }
+            return sb.ToString();
+        }
+
+        [RelayCommand]
+        private void GoToTables() => SelectExhibitsCommand.Execute(null);
     }
 }
 

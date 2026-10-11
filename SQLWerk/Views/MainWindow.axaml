@@ -44,67 +44,123 @@
                 <Button Grid.Column="2"
                         Content="Журнал"
                         VerticalAlignment="Center"
+                        IsEnabled="{Binding !ShowErrorScreen}"
                         Classes.blink="{Binding HasErrors}"
                         Command="{Binding ShowLogCommand}" />
             </Grid>
         </Border>
 
         <Grid>
-            <Grid IsVisible="{Binding ShowExhibits}" RowDefinitions="Auto,*">
-                <StackPanel Grid.Row="0" Orientation="Horizontal"
-                            Spacing="8" Margin="8,8,8,8">
-                    <Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
-                    <Button Content="Изменить"
-                            Command="{Binding EditExhibitCommand}"
-                            CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
-                    <Button Content="Удалить"
-                            Command="{Binding DeleteExhibitCommand}"
-                            CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
-                </StackPanel>
+            <Grid IsVisible="{Binding !ShowErrorScreen}">
+                <Grid IsVisible="{Binding ShowExhibits}" RowDefinitions="Auto,*">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal"
+                                Spacing="8" Margin="8,8,8,8">
+                        <Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
+                        <Button Content="Изменить"
+                                Command="{Binding EditExhibitCommand}"
+                                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+                        <Button Content="Удалить"
+                                Command="{Binding DeleteExhibitCommand}"
+                                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+                    </StackPanel>
 
-                <DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
-                          ItemsSource="{Binding Exhibits}"
+                    <DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
+                              ItemsSource="{Binding Exhibits}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+                            <DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
+                            <DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+                            <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+                            <DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+                            <DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+                            <DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+                            <DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+                            <DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+                            <DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+                <Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal"
+                                Spacing="8" Margin="8,8,8,8">
+                        <Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
+                        <Button Content="Изменить"
+                                Command="{Binding EditVuzCommand}"
+                                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+                        <Button Content="Удалить"
+                                Command="{Binding DeleteVuzCommand}"
+                                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="VuzGrid" Grid.Row="1"
+                              ItemsSource="{Binding Vuzes}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+                            <DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+                            <DataGridTextColumn Header="Полное наименование" Binding="{Binding Z1Full}" />
+                            <DataGridTextColumn Header="Краткое наименование" Binding="{Binding Z2}" />
+                            <DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+                            <DataGridTextColumn Header="Город" Binding="{Binding City}" />
+                            <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+                            <DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+                            <DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+                            <DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+                            <DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+                <Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal"
+                                Spacing="8" Margin="8,8,8,8">
+                        <Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
+                        <Button Content="Изменить"
+                                Command="{Binding EditGrntiCommand}"
+                                CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+                        <Button Content="Удалить"
+                                Command="{Binding DeleteGrntiCommand}"
+                                CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="GrntiGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Grnti}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
+                            <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+                <DataGrid ItemsSource="{Binding FullTable}"
                           AutoGenerateColumns="False"
+                          IsVisible="{Binding ShowAll}"
                           IsReadOnly="True">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-                        <DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
                         <DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+                        <DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
                         <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
                         <DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+                        <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
                         <DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
                         <DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
                         <DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
                         <DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
                         <DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
-                    </DataGrid.Columns>
-                </DataGrid>
-            </Grid>
-
-            <Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
-                <StackPanel Grid.Row="0" Orientation="Horizontal"
-                            Spacing="8" Margin="8,8,8,8">
-                    <Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
-                    <Button Content="Изменить"
-                            Command="{Binding EditVuzCommand}"
-                            CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
-                    <Button Content="Удалить"
-                            Command="{Binding DeleteVuzCommand}"
-                            CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
-                </StackPanel>
-
-                <DataGrid x:Name="VuzGrid" Grid.Row="1"
-                          ItemsSource="{Binding Vuzes}"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True">
-                    <DataGrid.Columns>
                         <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+                        <DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
                         <DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
-                        <DataGridTextColumn Header="Полное наименование" Binding="{Binding Z1Full}" />
-                        <DataGridTextColumn Header="Краткое наименование" Binding="{Binding Z2}" />
+                        <DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
+                        <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
                         <DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
                         <DataGridTextColumn Header="Город" Binding="{Binding City}" />
-                        <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
                         <DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
                         <DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
                         <DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
@@ -113,58 +169,29 @@
                 </DataGrid>
             </Grid>
 
-            <Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
-                <StackPanel Grid.Row="0" Orientation="Horizontal"
-                            Spacing="8" Margin="8,8,8,8">
-                    <Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
-                    <Button Content="Изменить"
-                            Command="{Binding EditGrntiCommand}"
-                            CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
-                    <Button Content="Удалить"
-                            Command="{Binding DeleteGrntiCommand}"
-                            CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
-                </StackPanel>
+            <Grid IsVisible="{Binding ShowErrorScreen}" Margin="16">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="Загрузка завершилась со следующими предупреждениями:"
+                               FontSize="16" FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
 
-                <DataGrid x:Name="GrntiGrid"
-                          Grid.Row="1"
-                          ItemsSource="{Binding Grnti}"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
-                        <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                    <StackPanel DockPanel.Dock="Bottom"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Spacing="8" Margin="0,12,0,0">
+                        <Button Content="Перейти к таблицам"
+                                Command="{Binding GoToTablesCommand}" />
+                    </StackPanel>
+
+                    <TextBox Text="{Binding ErrorScreenText}"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             FontFamily="Consolas"
+                             FontSize="12" />
+                </DockPanel>
             </Grid>
-
-            <DataGrid ItemsSource="{Binding FullTable}"
-                      AutoGenerateColumns="False"
-                      IsVisible="{Binding ShowAll}"
-                      IsReadOnly="True">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
-                    <DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
-                    <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
-                    <DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
-                    <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
-                    <DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
-                    <DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
-                    <DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
-                    <DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
-                    <DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
-                    <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-                    <DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
-                    <DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
-                    <DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
-                    <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
-                    <DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
-                    <DataGridTextColumn Header="Город" Binding="{Binding City}" />
-                    <DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
-                    <DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
-                    <DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
-                    <DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
-                </DataGrid.Columns>
-            </DataGrid>
         </Grid>
     </DockPanel>
 </Window>
