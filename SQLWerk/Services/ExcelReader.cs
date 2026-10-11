@@ -1,4 +1,5 @@
 ﻿using ExcelDataReader;
+using Microsoft.Extensions.Logging;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
 using System;
@@ -11,29 +12,38 @@ namespace SQLWerk.Services
 {
     public class ExcelReader : IExcelReader
     {
+        private readonly ILogger<ExcelReader> _logger;
         static ExcelReader()
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         }
 
+        public ExcelReader(ILogger<ExcelReader> logger) => _logger = logger;
+
         public List<T> Parse<T>(string filePath) where T : ITableRow, new()
         {
             var result = new List<T>();
+            var fileName = Path.GetFileName(filePath);
 
             using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read);
             using var reader = ExcelReaderFactory.CreateReader(stream);
-
             reader.Read();
 
+            int rowNumber = 1;
             while (reader.Read())
             {
+                rowNumber++;
                 var row = new T();
                 row.FillTable(reader);
-                if (ValidationService.IsValid(row))
-                {
-                    result.Add(row);
-                }
+
+                var (ok, reason) = ValidationService.Validate(row);
+                if (ok) result.Add(row);
+                else
+                    _logger.LogWarning(
+                        "Строка {Row} в файле {File} удалена. Причина: {Reason}",
+                        rowNumber, fileName, reason ?? "—");
             }
+
             return result;
         }
 
