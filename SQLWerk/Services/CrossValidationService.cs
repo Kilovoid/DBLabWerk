@@ -56,7 +56,7 @@ namespace SQLWerk.Services
                 {
                     removed++;
                     _logger.LogWarning(
-                        "Выставка Id={Id} удалена. Причина: {Reason}",
+                        "Выставка Id={Id} не загружена. Причина: {Reason}",
                         e.Id, string.Join("; ", issues));
                 }
             }

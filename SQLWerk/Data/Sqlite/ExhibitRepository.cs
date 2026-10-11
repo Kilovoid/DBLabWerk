@@ -105,6 +105,62 @@ namespace SQLWerk.Data.Sqlite
             tx.Commit();
         }
 
+        public void Add(ExhibitTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = InsertSql;
+            cmd.AddParam("$c", row.Codvuz).AddParam("$z", row.Z2)
+               .AddParam("$t", row.Type).AddParam("$r", row.Regnumber)
+               .AddParam("$s", row.Subject).AddParam("$g", row.Grnti)
+               .AddParam("$bn", row.Bossname).AddParam("$bt", row.Bosstitle)
+               .AddParam("$e", row.Exhitype).AddParam("$v", row.Vystavki)
+               .AddParam("$ex", row.Exponat);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Update(ExhibitTableRow row)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+        UPDATE Exhibits SET
+            Codvuz=$c, Z2=$z, Type=$t, Regnumber=$r, Subject=$s,
+            Grnti=$g, Bossname=$bn, Bosstitle=$bt, Exhitype=$e,
+            Vystavki=$v, Exponat=$ex
+        WHERE Id=$id;
+        """;
+            cmd.AddParam("$c", row.Codvuz).AddParam("$z", row.Z2)
+               .AddParam("$t", row.Type).AddParam("$r", row.Regnumber)
+               .AddParam("$s", row.Subject).AddParam("$g", row.Grnti)
+               .AddParam("$bn", row.Bossname).AddParam("$bt", row.Bosstitle)
+               .AddParam("$e", row.Exhitype).AddParam("$v", row.Vystavki)
+               .AddParam("$ex", row.Exponat).AddParam("$id", row.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void Delete(long id)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Exhibits WHERE Id=$id;";
+            cmd.AddParam("$id", id);
+            cmd.ExecuteNonQuery();
+        }
+
+        public void DeleteByCodvuz(string codvuz)
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM Exhibits WHERE Codvuz=$c;";
+            cmd.AddParam("$c", codvuz);
+            cmd.ExecuteNonQuery();
+        }
+
         public void Clear()
         {
             using var conn = _factory.Create();

@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLWerk.ViewModels"
+        x:Class="SQLWerk.Views.ExhibitEditWindow"
+        x:DataType="vm:ExhibitEditViewModel"
+        Width="560" Height="640"
+        WindowStartupLocation="CenterOwner"
+        Title="{Binding Title}">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="6">
+            <TextBlock Text="Код ВУЗа *"/>
+            <TextBox Text="{Binding Codvuz}"/>
+
+            <TextBlock Text="Краткое наименование ВУЗа"/>
+            <TextBox Text="{Binding Z2}"/>
+
+            <TextBlock Text="Признак формы"/>
+            <TextBox Text="{Binding Type}"/>
+
+            <TextBlock Text="Регистрационный номер"/>
+            <TextBox Text="{Binding Regnumber}"/>
+
+            <TextBlock Text="Наименование проекта"/>
+            <TextBox Text="{Binding Subject}"/>
+
+            <TextBlock Text="Код ГРНТИ * (например: 02.61.45, 21.21.21)"/>
+            <TextBox Text="{Binding Grnti}"/>
+
+            <TextBlock Text="Руководитель"/>
+            <TextBox Text="{Binding Bossname}"/>
+
+            <TextBlock Text="Должность/степень руководителя"/>
+            <TextBox Text="{Binding Bosstitle}"/>
+
+            <TextBlock Text="Наличие экспоната"/>
+            <TextBox Text="{Binding Exhitype}"/>
+
+            <TextBlock Text="Выставки"/>
+            <TextBox Text="{Binding Vystavki}"/>
+
+            <TextBlock Text="Название экспоната"/>
+            <TextBox Text="{Binding Exponat}"/>
+
+            <TextBlock Text="{Binding Error}" Foreground="Red" TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button Content="Сохранить" Command="{Binding SaveCommand}"/>
+                <Button Content="Отмена"    Command="{Binding CancelCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
