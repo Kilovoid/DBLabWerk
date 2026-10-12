@@ -42,16 +42,17 @@
                            Margin="12,0,12,0" />
 
                 <Button Grid.Column="2"
-                    Content="Журнал"
-                    VerticalAlignment="Center"
-                    IsEnabled="{Binding !ShowErrorScreen}"
-                    Classes.blink="{Binding IsBlinking}"
-                    Command="{Binding ShowLogCommand}" />
-                </Grid>
+                        Content="Журнал"
+                        VerticalAlignment="Center"
+                        IsEnabled="{Binding !ShowErrorScreen}"
+                        Classes.blink="{Binding IsBlinking}"
+                        Command="{Binding ShowLogCommand}" />
+            </Grid>
         </Border>
 
         <Grid>
             <Grid IsVisible="{Binding !ShowErrorScreen}">
+                <!-- Вкладка "Выставки" — как была, без фильтров -->
                 <Grid IsVisible="{Binding ShowExhibits}" RowDefinitions="Auto,*">
                     <StackPanel Grid.Row="0" Orientation="Horizontal"
                                 Spacing="8" Margin="8,8,8,8">
@@ -83,6 +84,7 @@
                     </DataGrid>
                 </Grid>
 
+                <!-- Вкладка "ВУЗы" — как была -->
                 <Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
                     <StackPanel Grid.Row="0" Orientation="Horizontal"
                                 Spacing="8" Margin="8,8,8,8">
@@ -115,6 +117,7 @@
                     </DataGrid>
                 </Grid>
 
+                <!-- Вкладка "ГРНТИ" — как была -->
                 <Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
                     <StackPanel Grid.Row="0" Orientation="Horizontal"
                                 Spacing="8" Margin="8,8,8,8">
@@ -139,34 +142,90 @@
                     </DataGrid>
                 </Grid>
 
-                <DataGrid ItemsSource="{Binding FullTable}"
-                          AutoGenerateColumns="False"
-                          IsVisible="{Binding ShowAll}"
-                          IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
-                        <DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
-                        <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
-                        <DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
-                        <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
-                        <DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
-                        <DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
-                        <DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
-                        <DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
-                        <DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
-                        <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-                        <DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
-                        <DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
-                        <DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
-                        <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
-                        <DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
-                        <DataGridTextColumn Header="Город" Binding="{Binding City}" />
-                        <DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
-                        <DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
-                        <DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
-                        <DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                <!-- Вкладка "Вся информация" — здесь фильтры -->
+                <Grid IsVisible="{Binding ShowAll}" RowDefinitions="Auto,*">
+                    <Border Grid.Row="0"
+                            Background="#F0F0F0"
+                            BorderBrush="#CCCCCC"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="8"
+                            Margin="8,8,8,8">
+                        <StackPanel Orientation="Vertical" Spacing="6">
+                            <TextBlock Text="Фильтры" FontWeight="SemiBold"/>
+
+                            <Grid ColumnDefinitions="*,8,*,8,*,8,*,8,*">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Федеральный округ" FontSize="11"/>
+                                    <ComboBox ItemsSource="{Binding FilterRegionOptions}"
+                                              SelectedItem="{Binding FilterRegion}"
+                                              HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Субъект федерации" FontSize="11"/>
+                                    <ComboBox ItemsSource="{Binding FilterOblOptions}"
+                                              SelectedItem="{Binding FilterObl}"
+                                              HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Город" FontSize="11"/>
+                                    <ComboBox ItemsSource="{Binding FilterCityOptions}"
+                                              SelectedItem="{Binding FilterCity}"
+                                              HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="6">
+                                    <TextBlock Text="Рубрика ГРНТИ" FontSize="11"/>
+                                    <ComboBox ItemsSource="{Binding FilterGrntiOptions}"
+                                              SelectedItem="{Binding FilterGrnti}"
+                                              HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="8">
+                                    <TextBlock Text="Степень готовности экспоната" FontSize="11"/>
+                                    <ComboBox ItemsSource="{Binding FilterExhitypeOptions}"
+                                              SelectedItem="{Binding FilterExhitype}"
+                                              HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Button Content="Сбросить фильтры"
+                                    Command="{Binding ResetFiltersCommand}"
+                                    HorizontalAlignment="Right"/>
+                        </StackPanel>
+                    </Border>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding FilteredFull}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+                            <DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
+                            <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+                            <DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+                            <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
+                            <DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+                            <DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+                            <DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+                            <DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+                            <DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+                            <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+                            <DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
+                            <DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+                            <DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
+                            <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+                            <DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+                            <DataGridTextColumn Header="Город" Binding="{Binding City}" />
+                            <DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+                            <DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+                            <DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+                            <DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
             </Grid>
 
             <Grid IsVisible="{Binding ShowErrorScreen}" Margin="16">
