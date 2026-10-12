@@ -43,5 +43,7 @@ namespace SQLWerk.Models
             GrVed = ExcelReader.Get(r, 9)?.Trim() ?? "";
             Prof = ExcelReader.Get(r, 10)?.Trim() ?? "";
         }
+
+        public string? DedupKey => string.IsNullOrWhiteSpace(Codvuz) ? null : Codvuz.Trim();
     }
 }

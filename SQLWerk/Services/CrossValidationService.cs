@@ -55,9 +55,13 @@ namespace SQLWerk.Services
                 else
                 {
                     removed++;
+
+                    var reg = string.IsNullOrWhiteSpace(e.Regnumber) ? "—" : e.Regnumber.Trim();
+                    var subj = string.IsNullOrWhiteSpace(e.Subject) ? "—" : e.Subject.Trim();
+
                     _logger.LogWarning(
-                        "Выставка {Id} удалена. Причина: {Reason}",
-                        e.Id, string.Join("; ", issues));
+                        "Выставка с рег. номером {Regnumber} удалена. Причина: {Reason}",
+                        reg, string.Join("; ", issues));
                 }
             }
 

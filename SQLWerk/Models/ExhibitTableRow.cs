@@ -43,5 +43,7 @@ namespace SQLWerk.Models
             Vystavki = ExcelReader.Get(r, 9)?.Trim() ?? "";
             Exponat = ExcelReader.Get(r, 10)?.Trim() ?? "";
         }
+
+        public string? DedupKey => null;
     }
 }
