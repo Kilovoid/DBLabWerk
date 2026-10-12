@@ -23,5 +23,7 @@ namespace SQLWerk.Models
             Codrub = ExcelReader.Get(r, 0)?.Trim() ?? "";
             Rubrika = ExcelReader.Get(r, 1)?.Trim() ?? "";
         }
+
+        public string? DedupKey => string.IsNullOrWhiteSpace(Codrub) ? null : Codrub.Trim();
     }
 }

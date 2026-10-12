@@ -10,13 +10,11 @@ namespace SQLWerk.ViewModels;
 
 public partial class VuzEditViewModel : ObservableObject
 {
-    // Справочники, заполняются из MainWindowViewModel
     public static List<string> RegionOptions { get; set; } = new();
     public static List<string> StatusOptions { get; set; } = new();
     public static List<string> OblOptions { get; set; } = new();
     public static Dictionary<string, string> OblToName { get; set; } = new();
 
-    // Существующие значения для проверки повторов
     public static HashSet<string> ExistingCodvuz { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public static HashSet<string> ExistingZ1 { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public static HashSet<string> ExistingZ1Full { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -93,7 +91,8 @@ public partial class VuzEditViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(City)) issues.Add("Не заполнен город");
         if (string.IsNullOrWhiteSpace(Status)) issues.Add("Не выбран тип учреждения");
         if (string.IsNullOrWhiteSpace(Obl)) issues.Add("Не выбран код региона");
-        else if (string.IsNullOrWhiteSpace(OblName)) issues.Add($"Регион для кода '{Obl}' не найден");
+        else if (!OblToName.ContainsKey((Obl ?? "").Trim()))
+            issues.Add($"Регион для кода '{Obl}' не найден");
 
         var c = (Codvuz ?? "").Trim();
         if (c.Length > 0

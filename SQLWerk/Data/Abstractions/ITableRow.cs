@@ -8,5 +8,7 @@ namespace SQLWerk.Data.Abstractions
     public interface ITableRow
     {
         void FillTable(IExcelDataReader reader);
+
+        string? DedupKey { get; }
     }
 }

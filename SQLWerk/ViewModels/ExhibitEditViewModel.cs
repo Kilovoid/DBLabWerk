@@ -92,11 +92,23 @@ public partial class ExhibitEditViewModel : ObservableObject
     {
         var issues = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(Codvuz))
+        var cod = (Codvuz ?? "").Trim();
+        if (cod.Length == 0)
             issues.Add("Не выбран код ВУЗа");
+        else if (!VuzCodes.Contains(cod))
+            issues.Add($"Код ВУЗа '{cod}' не найден");
 
-        if (string.IsNullOrWhiteSpace(Type))
+        var type = (Type ?? "").Trim();
+        if (type.Length == 0)
             issues.Add("Не выбран признак формы");
+        else if (!TypeOptions.Contains(type))
+            issues.Add($"Недопустимый признак формы: '{type}'");
+
+        var exh = (Exhitype ?? "").Trim();
+        if (exh.Length == 0)
+            issues.Add("Не выбрано наличие экспоната");
+        else if (!ExhibitOptions.Contains(exh))
+            issues.Add($"Недопустимое значение наличия экспоната: '{exh}'");
 
         if (string.IsNullOrWhiteSpace(Regnumber))
             issues.Add("Не заполнен регистрационный номер");
@@ -110,24 +122,23 @@ public partial class ExhibitEditViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(Bosstitle))
             issues.Add("Не заполнена должность/степень руководителя");
 
-        if (string.IsNullOrWhiteSpace(Exhitype))
-            issues.Add("Не выбрано наличие экспоната");
-
         var codes = new List<string>();
         foreach (var entry in GrntiEntries)
         {
             var rub = (entry.Rubric ?? "").Trim();
-            var sub = (entry.Sub ?? "")
-                .Replace("_", "")
-                .Trim()
-                .TrimEnd('.')
-                .Trim();
+            var sub = (entry.Sub ?? "").Replace("_", "").Trim().TrimEnd('.').Trim();
 
             if (rub.Length == 0 && sub.Length == 0) continue;
 
             if (!Regex.IsMatch(rub, @"^\d{2}$"))
             {
                 issues.Add($"Рубрика ГРНТИ должна быть из двух цифр: '{rub}'");
+                continue;
+            }
+
+            if (!GrntiRubrics.Contains(rub))
+            {
+                issues.Add($"Рубрика ГРНТИ '{rub}' не найдена в справочнике");
                 continue;
             }
 
@@ -152,15 +163,15 @@ public partial class ExhibitEditViewModel : ObservableObject
         var row = new ExhibitTableRow
         {
             Id = Id,
-            Codvuz = Codvuz.Trim(),
+            Codvuz = cod,
             Z2 = Z2,
-            Type = Type.Trim(),
+            Type = type,
             Regnumber = Regnumber.Trim(),
             Subject = Subject.Trim(),
             Grnti = GrntiService.ParseGrnti(string.Join(", ", codes)),
             Bossname = Bossname.Trim(),
             Bosstitle = Bosstitle.Trim(),
-            Exhitype = Exhitype.Trim(),
+            Exhitype = exh,
             Vystavki = Vystavki.Trim(),
             Exponat = Exponat.Trim(),
         };
