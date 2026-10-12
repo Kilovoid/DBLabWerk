@@ -42,12 +42,12 @@
                            Margin="12,0,12,0" />
 
                 <Button Grid.Column="2"
-                        Content="Журнал"
-                        VerticalAlignment="Center"
-                        IsEnabled="{Binding !ShowErrorScreen}"
-                        Classes.blink="{Binding HasErrors}"
-                        Command="{Binding ShowLogCommand}" />
-            </Grid>
+                    Content="Журнал"
+                    VerticalAlignment="Center"
+                    IsEnabled="{Binding !ShowErrorScreen}"
+                    Classes.blink="{Binding IsBlinking}"
+                    Command="{Binding ShowLogCommand}" />
+                </Grid>
         </Border>
 
         <Grid>

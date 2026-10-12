@@ -37,6 +37,10 @@ namespace SQLWerk.ViewModels
         private readonly InMemoryLoggerProvider _logProvider;
         private readonly CrossValidationService _crossValidator;
 
+        private int _sessionStartIndex;
+        private int _sessionWarningCount;
+        private bool _blinkAcknowledged;
+
         [ObservableProperty] private bool _hasErrors;
         [ObservableProperty] private int _warningCount;
 
@@ -54,6 +58,8 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private bool _showAll;
         [ObservableProperty] private bool _showErrorScreen;
         [ObservableProperty] private string _errorScreenText = "";
+
+        [ObservableProperty] private bool _isBlinking;
 
         public event EventHandler? ShowLogRequested;
         public Func<GrntiTableRow?, Task<GrntiTableRow?>>? GrntiEditHandler { get; set; }
@@ -91,12 +97,36 @@ namespace SQLWerk.ViewModels
         }
 
         [RelayCommand]
-        private void ShowLog() => ShowLogRequested?.Invoke(this, EventArgs.Empty);
+        private void ShowLog()
+        {
+            _blinkAcknowledged = true;
+            UpdateBlinking();
+            ShowLogRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         private void OnLogChanged(object? sender, EventArgs e)
         {
-            HasErrors = _logProvider.HasWarnings;
-            WarningCount = _logProvider.Entries.Count(x => x.Level >= LogLevel.Warning);
+            var session = _logProvider.Entries.Skip(_sessionStartIndex).ToList();
+            var newCount = session.Count(x => x.Level >= LogLevel.Warning);
+
+            HasErrors = newCount > 0;
+            WarningCount = newCount;
+            _sessionWarningCount = newCount;
+
+            UpdateBlinking();
+        }
+
+        private void StartNewSession()
+        {
+            _sessionStartIndex = _logProvider.Entries.Count;
+            _sessionWarningCount = 0;
+            _blinkAcknowledged = false;
+            OnLogChanged(this, EventArgs.Empty);
+        }
+
+        private void UpdateBlinking()
+        {
+            IsBlinking = _sessionWarningCount > 0 && !_blinkAcknowledged;
         }
 
         public void Initialize()
@@ -275,7 +305,7 @@ namespace SQLWerk.ViewModels
 
         private async Task LoadAsync()
         {
-            _logProvider.Clear();
+            StartNewSession();
 
             var files = await _picker.PickFilesAsync("Выберите файлы, содержащие данные Vyst_mo, VUZ, grntirub", 3);
             if (files is null)
@@ -415,6 +445,8 @@ namespace SQLWerk.ViewModels
                 $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\nДействие необратимо.");
             if (!ok) return;
 
+            StartNewSession();
+
             _grntiRepo.Delete(row.Id);
             _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
 
@@ -460,6 +492,8 @@ namespace SQLWerk.ViewModels
                 $"Все связанные выставки этого ВУЗа также будут удалены.");
             if (!ok) return;
 
+            StartNewSession();
+
             _vuzRepo.Delete(row.Id);
             _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
 
@@ -497,13 +531,13 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         private async Task DeleteExhibitAsync(ExhibitTableRow? row)
         {
-            //WarningCount = 0;
             if (ConfirmHandler is null || row is null) return;
 
             var ok = await ConfirmHandler(
                 "Удаление выставки",
                 $"Удалить выставку с регистрационным номером {row.Regnumber} «{row.Subject}»?\nДействие необратимо.");
             if (!ok) return;
+
 
             _exhibitRepo.Delete(row.Id);
 
@@ -514,9 +548,13 @@ namespace SQLWerk.ViewModels
 
         private void CloseErrorScreenIfOpen()
         {
-            if (!ShowErrorScreen) return;
+            if (!ShowErrorScreen && !IsBlinking) return;
+
+            _blinkAcknowledged = true;
+            UpdateBlinking();
+
             ShowErrorScreen = false;
-            ErrorScreenText = string.Empty; // освобождаем текст из памяти
+            ErrorScreenText = string.Empty;
         }
 
         private string BuildErrorScreenText()
