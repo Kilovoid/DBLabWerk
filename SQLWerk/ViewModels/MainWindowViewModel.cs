@@ -61,11 +61,84 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty] private bool _isBlinking;
 
+        [ObservableProperty] private string _filterRegion = "";
+        [ObservableProperty] private string _filterObl = "";
+        [ObservableProperty] private string _filterCity = "";
+        [ObservableProperty] private string _filterGrnti = "";
+        [ObservableProperty] private string _filterExhitype = "";
+
+        public ObservableCollection<string> FilterRegionOptions { get; } = new();
+        public ObservableCollection<string> FilterOblOptions { get; } = new();
+        public ObservableCollection<string> FilterCityOptions { get; } = new();
+        public ObservableCollection<string> FilterGrntiOptions { get; } = new();
+        public ObservableCollection<string> FilterExhitypeOptions { get; } = new();
+
+        [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
+
         public event EventHandler? ShowLogRequested;
         public Func<GrntiTableRow?, Task<GrntiTableRow?>>? GrntiEditHandler { get; set; }
         public Func<string, string, Task<bool>>? ConfirmHandler { get; set; }
         public Func<VuzTableRow?, Task<VuzTableRow?>>? VuzEditHandler { get; set; }
         public Func<ExhibitTableRow?, Task<ExhibitTableRow?>>? ExhibitEditHandler { get; set; }
+
+        partial void OnFilterRegionChanged(string value) => ApplyFilters();
+        partial void OnFilterOblChanged(string value) => ApplyFilters();
+        partial void OnFilterCityChanged(string value) => ApplyFilters();
+        partial void OnFilterGrntiChanged(string value) => ApplyFilters();
+        partial void OnFilterExhitypeChanged(string value) => ApplyFilters();
+
+        private void ApplyFilters()
+        {
+            bool noFilters =
+                string.IsNullOrEmpty(FilterRegion) &&
+                string.IsNullOrEmpty(FilterObl) &&
+                string.IsNullOrEmpty(FilterCity) &&
+                string.IsNullOrEmpty(FilterGrnti) &&
+                string.IsNullOrEmpty(FilterExhitype);
+
+            IEnumerable<FullModel> source = FullTable;
+
+            if (!noFilters)
+            {
+                source = source.Where(f =>
+                {
+                    if (!string.IsNullOrEmpty(FilterRegion)
+                        && !string.Equals(f.Region ?? "", FilterRegion, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (!string.IsNullOrEmpty(FilterObl)
+                        && !string.Equals(f.OblName ?? "", FilterObl, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (!string.IsNullOrEmpty(FilterCity)
+                        && !string.Equals(f.City ?? "", FilterCity, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (!string.IsNullOrEmpty(FilterExhitype)
+                        && !string.Equals(f.Exhitype ?? "", FilterExhitype, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (!string.IsNullOrEmpty(FilterGrnti))
+                    {
+                        var codes = (f.Grnti ?? "")
+                            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim());
+                        if (!codes.Any(c => c.StartsWith(FilterGrnti, StringComparison.Ordinal)))
+                            return false;
+                    }
+
+                    return true;
+                });
+            }
+
+            FilteredFull = new ObservableCollection<FullModel>(source);
+            RowCount = FilteredFull.Count;
+            Status = noFilters
+                ? $"Выставки: {RowCount} строк"
+                : $"Выставки (фильтр): {RowCount} строк";
+        }
+
+
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
@@ -225,6 +298,9 @@ namespace SQLWerk.ViewModels
                 .Select(g => (g.Codrub ?? "").Trim())
                 .Where(s => s.Length > 0)
               .ToHashSet(StringComparer.Ordinal);
+
+            RefreshFilterOptions();
+            ApplyFilters();
             //SelectExhibitsCommand.Execute(null);
         }
         private void LoadAll() //depricated for now
@@ -255,8 +331,45 @@ namespace SQLWerk.ViewModels
             ShowGrnti = false;
             ShowAll = false;
 
-            RowCount = Exhibits.Count;
-            Status = $"Выставки: {RowCount} строк";
+            ApplyFilters();
+        }
+
+        private void RefreshFilterOptions()
+        {
+            FilterRegionOptions.Clear();
+            foreach (var s in FullTable.Select(f => (f.Region ?? "").Trim())
+                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
+                FilterRegionOptions.Add(s);
+
+            FilterOblOptions.Clear();
+            foreach (var s in FullTable.Select(f => (f.OblName ?? "").Trim())
+                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
+                FilterOblOptions.Add(s);
+
+            FilterCityOptions.Clear();
+            foreach (var s in FullTable.Select(f => (f.City ?? "").Trim())
+                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
+                FilterCityOptions.Add(s);
+
+            FilterGrntiOptions.Clear();
+            foreach (var s in Grnti.Select(g => (g.Codrub ?? "").Trim())
+                                    .Where(s => s.Length == 2).Distinct().OrderBy(s => s))
+                FilterGrntiOptions.Add(s);
+
+            FilterExhitypeOptions.Clear();
+            foreach (var s in ExhibitEditViewModel.ExhibitOptions)
+                FilterExhitypeOptions.Add(s);
+        }
+
+        [RelayCommand]
+        private void ResetFilters()
+        {
+            FilterRegion = "";
+            FilterObl = "";
+            FilterCity = "";
+            FilterGrnti = "";
+            FilterExhitype = "";
+            ApplyFilters();
         }
 
         [RelayCommand]
