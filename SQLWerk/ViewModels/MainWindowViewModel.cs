@@ -61,17 +61,21 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty] private bool _isBlinking;
 
-        [ObservableProperty] private string _filterRegion = "";
-        [ObservableProperty] private string _filterObl = "";
-        [ObservableProperty] private string _filterCity = "";
-        [ObservableProperty] private string _filterGrnti = "";
-        [ObservableProperty] private string _filterExhitype = "";
+        private const string AllOption = "Все";
+
+        [ObservableProperty] private string _filterType = AllOption;
+        [ObservableProperty] private string _filterRegion = AllOption;
+        [ObservableProperty] private string _filterObl = AllOption;
+        [ObservableProperty] private string _filterCity = AllOption;
+        [ObservableProperty] private string _filterGrnti = AllOption;
+        [ObservableProperty] private string _filterExhitype = AllOption;
 
         public ObservableCollection<string> FilterRegionOptions { get; } = new();
         public ObservableCollection<string> FilterOblOptions { get; } = new();
         public ObservableCollection<string> FilterCityOptions { get; } = new();
         public ObservableCollection<string> FilterGrntiOptions { get; } = new();
         public ObservableCollection<string> FilterExhitypeOptions { get; } = new();
+        public ObservableCollection<string> FilterTypeOptions { get; } = new();
 
         [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
 
@@ -81,20 +85,30 @@ namespace SQLWerk.ViewModels
         public Func<VuzTableRow?, Task<VuzTableRow?>>? VuzEditHandler { get; set; }
         public Func<ExhibitTableRow?, Task<ExhibitTableRow?>>? ExhibitEditHandler { get; set; }
 
-        partial void OnFilterRegionChanged(string value) => ApplyFilters();
-        partial void OnFilterOblChanged(string value) => ApplyFilters();
-        partial void OnFilterCityChanged(string value) => ApplyFilters();
-        partial void OnFilterGrntiChanged(string value) => ApplyFilters();
-        partial void OnFilterExhitypeChanged(string value) => ApplyFilters();
+        partial void OnFilterRegionChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterOblChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterCityChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterGrntiChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterExhitypeChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterTypeChanged(string value) => ApplyFiltersAndRefreshStatus();
+
+        private void ApplyFiltersAndRefreshStatus()
+        {
+            ApplyFilters();
+
+            RowCount = FilteredFull.Count;
+            Status = $"Вся информация (фильтр): {RowCount} строк";
+        }
 
         private void ApplyFilters()
         {
             bool noFilters =
-                string.IsNullOrEmpty(FilterRegion) &&
-                string.IsNullOrEmpty(FilterObl) &&
-                string.IsNullOrEmpty(FilterCity) &&
-                string.IsNullOrEmpty(FilterGrnti) &&
-                string.IsNullOrEmpty(FilterExhitype);
+                FilterRegion == AllOption &&
+                FilterObl == AllOption &&
+                FilterCity == AllOption &&
+                FilterGrnti == AllOption &&
+                FilterExhitype == AllOption &&
+                FilterType == AllOption;
 
             IEnumerable<FullModel> source = FullTable;
 
@@ -102,23 +116,27 @@ namespace SQLWerk.ViewModels
             {
                 source = source.Where(f =>
                 {
-                    if (!string.IsNullOrEmpty(FilterRegion)
+                    if (FilterRegion != AllOption
                         && !string.Equals(f.Region ?? "", FilterRegion, StringComparison.OrdinalIgnoreCase))
                         return false;
 
-                    if (!string.IsNullOrEmpty(FilterObl)
+                    if (FilterObl != AllOption
                         && !string.Equals(f.OblName ?? "", FilterObl, StringComparison.OrdinalIgnoreCase))
                         return false;
 
-                    if (!string.IsNullOrEmpty(FilterCity)
+                    if (FilterCity != AllOption
                         && !string.Equals(f.City ?? "", FilterCity, StringComparison.OrdinalIgnoreCase))
                         return false;
 
-                    if (!string.IsNullOrEmpty(FilterExhitype)
+                    if (FilterExhitype != AllOption
                         && !string.Equals(f.Exhitype ?? "", FilterExhitype, StringComparison.OrdinalIgnoreCase))
                         return false;
 
-                    if (!string.IsNullOrEmpty(FilterGrnti))
+                    if (FilterType != AllOption
+                        && !string.Equals(f.Type ?? "", FilterType, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (FilterGrnti != AllOption)
                     {
                         var codes = (f.Grnti ?? "")
                             .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
@@ -132,10 +150,6 @@ namespace SQLWerk.ViewModels
             }
 
             FilteredFull = new ObservableCollection<FullModel>(source);
-            RowCount = FilteredFull.Count;
-            Status = noFilters
-                ? $"Выставки: {RowCount} строк"
-                : $"Выставки (фильтр): {RowCount} строк";
         }
 
 
@@ -331,45 +345,57 @@ namespace SQLWerk.ViewModels
             ShowGrnti = false;
             ShowAll = false;
 
-            ApplyFilters();
+            RowCount = Exhibits.Count;
+            Status = $"Выставки: {RowCount} строк";
         }
 
         private void RefreshFilterOptions()
         {
             FilterRegionOptions.Clear();
+            FilterRegionOptions.Add(AllOption);
             foreach (var s in FullTable.Select(f => (f.Region ?? "").Trim())
                                         .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
                 FilterRegionOptions.Add(s);
 
             FilterOblOptions.Clear();
+            FilterOblOptions.Add(AllOption);
             foreach (var s in FullTable.Select(f => (f.OblName ?? "").Trim())
                                         .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
                 FilterOblOptions.Add(s);
 
             FilterCityOptions.Clear();
+            FilterCityOptions.Add(AllOption);
             foreach (var s in FullTable.Select(f => (f.City ?? "").Trim())
                                         .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
                 FilterCityOptions.Add(s);
 
             FilterGrntiOptions.Clear();
+            FilterGrntiOptions.Add(AllOption);
             foreach (var s in Grnti.Select(g => (g.Codrub ?? "").Trim())
                                     .Where(s => s.Length == 2).Distinct().OrderBy(s => s))
                 FilterGrntiOptions.Add(s);
 
             FilterExhitypeOptions.Clear();
+            FilterExhitypeOptions.Add(AllOption);
             foreach (var s in ExhibitEditViewModel.ExhibitOptions)
                 FilterExhitypeOptions.Add(s);
+
+            FilterTypeOptions.Clear();
+            FilterTypeOptions.Add(AllOption);
+            foreach (var s in ExhibitEditViewModel.TypeOptions)
+                FilterTypeOptions.Add(s);
         }
 
         [RelayCommand]
         private void ResetFilters()
         {
-            FilterRegion = "";
-            FilterObl = "";
-            FilterCity = "";
-            FilterGrnti = "";
-            FilterExhitype = "";
-            ApplyFilters();
+            FilterRegion = AllOption;
+            FilterObl = AllOption;
+            FilterCity = AllOption;
+            FilterGrnti = AllOption;
+            FilterExhitype = AllOption;
+            FilterType = AllOption;
+            ApplyFiltersAndRefreshStatus();
         }
 
         [RelayCommand]
@@ -410,12 +436,12 @@ namespace SQLWerk.ViewModels
             ShowGrnti = false;
             ShowVuz = false;
 
-            RowCount = FullTable.Count;
-            Status = $"Общие данные: {RowCount} строк";
+            ApplyFilters();
+            RowCount = FilteredFull.Count;
+            Status = $"Вся информация: {RowCount} строк";
         }
 
         [RelayCommand]
-
         private async Task LoadAsync()
         {
             StartNewSession();
