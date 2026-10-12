@@ -142,13 +142,19 @@ public partial class ExhibitEditViewModel : ObservableObject
                 continue;
             }
 
-            if (sub.Length > 0 && !Regex.IsMatch(sub, @"^\d{2}(\.\d{2})?$"))
+            if (sub.Length == 0)
+            {
+                issues.Add($"Для рубрики ГРНТИ '{rub}' не заполнена подрубрика");
+                continue;
+            }
+
+            if (!Regex.IsMatch(sub, @"^\d{2}(\.\d{2})?$"))
             {
                 issues.Add($"Подрубрика ГРНТИ должна быть XX или XX.XX: '{sub}'");
                 continue;
             }
 
-            codes.Add(sub.Length == 0 ? rub : $"{rub}.{sub}");
+            codes.Add($"{rub}.{sub}");
         }
 
         if (codes.Count == 0)

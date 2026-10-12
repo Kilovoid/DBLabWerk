@@ -351,6 +351,13 @@ namespace SQLWerk.ViewModels
 
         private void RefreshFilterOptions()
         {
+            var keepRegion = FilterRegion;
+            var keepObl = FilterObl;
+            var keepCity = FilterCity;
+            var keepGrnti = FilterGrnti;
+            var keepExh = FilterExhitype;
+            var keepType = FilterType;
+
             FilterRegionOptions.Clear();
             FilterRegionOptions.Add(AllOption);
             foreach (var s in FullTable.Select(f => (f.Region ?? "").Trim())
@@ -384,6 +391,13 @@ namespace SQLWerk.ViewModels
             FilterTypeOptions.Add(AllOption);
             foreach (var s in ExhibitEditViewModel.TypeOptions)
                 FilterTypeOptions.Add(s);
+
+            FilterRegion = FilterRegionOptions.Contains(keepRegion) ? keepRegion : AllOption;
+            FilterObl = FilterOblOptions.Contains(keepObl) ? keepObl : AllOption;
+            FilterCity = FilterCityOptions.Contains(keepCity) ? keepCity : AllOption;
+            FilterGrnti = FilterGrntiOptions.Contains(keepGrnti) ? keepGrnti : AllOption;
+            FilterExhitype = FilterExhitypeOptions.Contains(keepExh) ? keepExh : AllOption;
+            FilterType = FilterTypeOptions.Contains(keepType) ? keepType : AllOption;
         }
 
         [RelayCommand]
@@ -444,6 +458,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         private async Task LoadAsync()
         {
+            _logProvider.Clear();
             StartNewSession();
 
             var files = await _picker.PickFilesAsync("Выберите файлы, содержащие данные Vyst_mo, VUZ, grntirub", 3);
@@ -581,7 +596,9 @@ namespace SQLWerk.ViewModels
 
             var ok = await ConfirmHandler(
                 "Удаление рубрики",
-                $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\nДействие необратимо.");
+                $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\n" +
+                $"Все связи с данной рубрикой будут удалены\n" +
+                $"Действие необратимо.");
             if (!ok) return;
 
             StartNewSession();

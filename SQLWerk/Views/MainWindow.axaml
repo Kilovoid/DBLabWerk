@@ -68,6 +68,16 @@
                               ItemsSource="{Binding Exhibits}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
+						<DataGrid.ContextMenu>
+							<ContextMenu>
+								<MenuItem Header="Изменить"
+										  Command="{Binding EditExhibitCommand}"
+										  CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+								<MenuItem Header="Удалить"
+										  Command="{Binding DeleteExhibitCommand}"
+										  CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+							</ContextMenu>
+						</DataGrid.ContextMenu>
 						<DataGrid.Columns>
 							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
 							<DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
@@ -99,6 +109,16 @@
                               ItemsSource="{Binding Vuzes}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
+						<DataGrid.ContextMenu>
+							<ContextMenu>
+								<MenuItem Header="Изменить"
+										  Command="{Binding EditExhibitCommand}"
+										  CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+								<MenuItem Header="Удалить"
+										  Command="{Binding DeleteExhibitCommand}"
+										  CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+							</ContextMenu>
+						</DataGrid.ContextMenu>
 						<DataGrid.Columns>
 							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
 							<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
@@ -132,6 +152,16 @@
                               ItemsSource="{Binding Grnti}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
+						<DataGrid.ContextMenu>
+							<ContextMenu>
+								<MenuItem Header="Изменить"
+										  Command="{Binding EditExhibitCommand}"
+										  CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+								<MenuItem Header="Удалить"
+										  Command="{Binding DeleteExhibitCommand}"
+										  CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+							</ContextMenu>
+						</DataGrid.ContextMenu>
 						<DataGrid.Columns>
 							<DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
 							<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
@@ -139,7 +169,6 @@
 					</DataGrid>
 				</Grid>
 
-				<!-- Вкладка "Вся информация" — здесь фильтры -->
 				<Grid IsVisible="{Binding ShowAll}" RowDefinitions="Auto,*">
 					<Border Grid.Row="0"
                             Background="#F0F0F0"

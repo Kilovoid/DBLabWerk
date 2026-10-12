@@ -46,6 +46,62 @@ public partial class VuzEditViewModel : ObservableObject
 
     public VuzEditViewModel() { }
 
+    partial void OnZ1Changed(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Z1 = filtered;
+    }
+
+    partial void OnZ1FullChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Z1Full = filtered;
+    }
+
+    partial void OnZ2Changed(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Z2 = filtered;
+    }
+
+    partial void OnRegionChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Region = filtered;
+    }
+
+    partial void OnCityChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) City = filtered;
+    }
+
+    partial void OnOblNameChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) OblName = filtered;
+    }
+
+    partial void OnStatusChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Status = filtered;
+    }
+
+    private static string RemoveDigits(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return value ?? "";
+        return new string(value.Where(c => !char.IsDigit(c)).ToArray());
+    }
+    partial void OnCodvuzChanged(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+
+        var digitsOnly = new string(value.Where(char.IsDigit).ToArray());
+        if (digitsOnly != value)
+            Codvuz = digitsOnly;
+    }
+
     public VuzEditViewModel(VuzTableRow row)
     {
         IsEditMode = true;
