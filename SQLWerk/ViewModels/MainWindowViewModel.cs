@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -61,21 +61,16 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty] private bool _isBlinking;
 
-        private const string AllOption = "Все";
+        public MultiSelectFilterViewModel RegionFilter { get; } = new("Федеральный округ");
+        public MultiSelectFilterViewModel OblFilter { get; } = new("Субъект федерации");
+        public MultiSelectFilterViewModel CityFilter { get; } = new("Город");
+        public MultiSelectFilterViewModel GrntiFilter { get; } = new("Рубрика ГРНТИ");
+        public MultiSelectFilterViewModel ExhitypeFilter { get; } = new("Наличие экспоната");
+        public MultiSelectFilterViewModel TypeFilter { get; } = new("Признак формы");
+        private bool _updatingFilters;
 
-        [ObservableProperty] private string _filterType = AllOption;
-        [ObservableProperty] private string _filterRegion = AllOption;
-        [ObservableProperty] private string _filterObl = AllOption;
-        [ObservableProperty] private string _filterCity = AllOption;
-        [ObservableProperty] private string _filterGrnti = AllOption;
-        [ObservableProperty] private string _filterExhitype = AllOption;
-
-        public ObservableCollection<string> FilterRegionOptions { get; } = new();
-        public ObservableCollection<string> FilterOblOptions { get; } = new();
-        public ObservableCollection<string> FilterCityOptions { get; } = new();
-        public ObservableCollection<string> FilterGrntiOptions { get; } = new();
-        public ObservableCollection<string> FilterExhitypeOptions { get; } = new();
-        public ObservableCollection<string> FilterTypeOptions { get; } = new();
+        private IEnumerable<MultiSelectFilterViewModel> Filters =>
+            new[] { RegionFilter, OblFilter, CityFilter, GrntiFilter, ExhitypeFilter, TypeFilter };
 
         [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
 
@@ -85,73 +80,45 @@ namespace SQLWerk.ViewModels
         public Func<VuzTableRow?, Task<VuzTableRow?>>? VuzEditHandler { get; set; }
         public Func<ExhibitTableRow?, Task<ExhibitTableRow?>>? ExhibitEditHandler { get; set; }
 
-        partial void OnFilterRegionChanged(string value) => ApplyFiltersAndRefreshStatus();
-        partial void OnFilterOblChanged(string value) => ApplyFiltersAndRefreshStatus();
-        partial void OnFilterCityChanged(string value) => ApplyFiltersAndRefreshStatus();
-        partial void OnFilterGrntiChanged(string value) => ApplyFiltersAndRefreshStatus();
-        partial void OnFilterExhitypeChanged(string value) => ApplyFiltersAndRefreshStatus();
-        partial void OnFilterTypeChanged(string value) => ApplyFiltersAndRefreshStatus();
-
         private void ApplyFiltersAndRefreshStatus()
         {
+            if (_updatingFilters) return;
             ApplyFilters();
-
-            RowCount = FilteredFull.Count;
-            Status = $"Вся информация (фильтр): {RowCount} строк";
+            if (ShowAll)
+            {
+                RowCount = FilteredFull.Count;
+                Status = $"Вся информация (фильтр): {RowCount} строк";
+            }
         }
+
+        private static IEnumerable<string> GetMainRubrics(string? value) => (value ?? "")
+            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(code => code.Trim())
+            .Where(code => code.Length >= 2)
+            .Select(code => code.Substring(0, 2))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
 
         private void ApplyFilters()
         {
-            bool noFilters =
-                FilterRegion == AllOption &&
-                FilterObl == AllOption &&
-                FilterCity == AllOption &&
-                FilterGrnti == AllOption &&
-                FilterExhitype == AllOption &&
-                FilterType == AllOption;
+            var regions = RegionFilter.GetSelection();
+            var oblasts = OblFilter.GetSelection();
+            var cities = CityFilter.GetSelection();
+            var rubrics = GrntiFilter.GetSelection();
+            var exhibitTypes = ExhitypeFilter.GetSelection();
+            var types = TypeFilter.GetSelection();
 
-            IEnumerable<FullModel> source = FullTable;
+            static bool Matches(HashSet<string>? selected, string? value) =>
+                selected == null || selected.Contains((value ?? "").Trim());
 
-            if (!noFilters)
-            {
-                source = source.Where(f =>
-                {
-                    if (FilterRegion != AllOption
-                        && !string.Equals(f.Region ?? "", FilterRegion, StringComparison.OrdinalIgnoreCase))
-                        return false;
-
-                    if (FilterObl != AllOption
-                        && !string.Equals(f.OblName ?? "", FilterObl, StringComparison.OrdinalIgnoreCase))
-                        return false;
-
-                    if (FilterCity != AllOption
-                        && !string.Equals(f.City ?? "", FilterCity, StringComparison.OrdinalIgnoreCase))
-                        return false;
-
-                    if (FilterExhitype != AllOption
-                        && !string.Equals(f.Exhitype ?? "", FilterExhitype, StringComparison.OrdinalIgnoreCase))
-                        return false;
-
-                    if (FilterType != AllOption
-                        && !string.Equals(f.Type ?? "", FilterType, StringComparison.OrdinalIgnoreCase))
-                        return false;
-
-                    if (FilterGrnti != AllOption)
-                    {
-                        var codes = (f.Grnti ?? "")
-                            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(s => s.Trim());
-                        if (!codes.Any(c => c.StartsWith(FilterGrnti, StringComparison.Ordinal)))
-                            return false;
-                    }
-
-                    return true;
-                });
-            }
-
-            FilteredFull = new ObservableCollection<FullModel>(source);
+            FilteredFull = new ObservableCollection<FullModel>(FullTable.Where(row =>
+                Matches(regions, row.Region)
+                && Matches(oblasts, row.OblName)
+                && Matches(cities, row.City)
+                && Matches(exhibitTypes, row.Exhitype)
+                && Matches(types, row.Type)
+                && (rubrics == null || GetMainRubrics(row.Grnti)
+                    .DefaultIfEmpty("").Any(rubrics.Contains))));
         }
-
 
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
@@ -177,6 +144,9 @@ namespace SQLWerk.ViewModels
             _reader = reader;
             _logProvider = loggerProvider;
             _crossValidator = crossValidator;
+
+            foreach (var filter in Filters)
+                filter.SelectionChanged += (_, _) => ApplyFiltersAndRefreshStatus();
 
             _logProvider.Changed += OnLogChanged;
 
@@ -225,9 +195,9 @@ namespace SQLWerk.ViewModels
 
             var haveData =
                 _exhibitImport.Count() > 0 || _vuzImport.Count() > 0 || _grntiImport.Count() > 0;
+            ReloadFromDatabase();
             if (haveData)
             {
-                ReloadFromDatabase();
                 SelectExhibitsCommand.Execute(null);
                 Status = "Данные загружены из БД";
             }
@@ -245,10 +215,11 @@ namespace SQLWerk.ViewModels
             Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
             ExhibitEditViewModel.VuzCodes = Vuzes
-                .Select(v => v.Codvuz ?? "")
-                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Select(v => v.Codvuz)
+                .Where(c => c > 0)
                 .Distinct()
                 .OrderBy(c => c)
+                .Select(c => c.ToString())
                 .ToList();
 
             ExhibitEditViewModel.GrntiRubrics = Grnti
@@ -293,10 +264,15 @@ namespace SQLWerk.ViewModels
             }
             VuzEditViewModel.OblToName = map;
 
+            VuzEditViewModel.CityOptions = Options(Vuzes.Select(v => v.City));
+            VuzEditViewModel.OblNameOptions = Options(map.Values.Concat(Vuzes.Select(v => v.OblName)));
+            VuzEditViewModel.GrVedOptions = Options(Vuzes.Select(v => v.GrVed));
+            VuzEditViewModel.ProfOptions = Options(Vuzes.Select(v => v.Prof));
+
             VuzEditViewModel.ExistingCodvuz = Vuzes
-                .Select(v => (v.Codvuz ?? "").Trim())
-                .Where(s => s.Length > 0)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .Select(v => v.Codvuz)
+                .Where(code => code > 0)
+                .ToHashSet();
 
             VuzEditViewModel.ExistingZ1 = Vuzes
                 .Select(v => (v.Z1 ?? "").Trim())
@@ -317,6 +293,13 @@ namespace SQLWerk.ViewModels
             ApplyFilters();
             //SelectExhibitsCommand.Execute(null);
         }
+        private static List<string> Options(IEnumerable<string?> values) => values
+            .Select(value => (value ?? "").Trim())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value)
+            .ToList();
+
         private void LoadAll() //depricated for now
         {
             if (_exhibitsPath is null || _vuzPath is null || _grntiPath is null)
@@ -351,64 +334,25 @@ namespace SQLWerk.ViewModels
 
         private void RefreshFilterOptions()
         {
-            var keepRegion = FilterRegion;
-            var keepObl = FilterObl;
-            var keepCity = FilterCity;
-            var keepGrnti = FilterGrnti;
-            var keepExh = FilterExhitype;
-            var keepType = FilterType;
-
-            FilterRegionOptions.Clear();
-            FilterRegionOptions.Add(AllOption);
-            foreach (var s in FullTable.Select(f => (f.Region ?? "").Trim())
-                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
-                FilterRegionOptions.Add(s);
-
-            FilterOblOptions.Clear();
-            FilterOblOptions.Add(AllOption);
-            foreach (var s in FullTable.Select(f => (f.OblName ?? "").Trim())
-                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
-                FilterOblOptions.Add(s);
-
-            FilterCityOptions.Clear();
-            FilterCityOptions.Add(AllOption);
-            foreach (var s in FullTable.Select(f => (f.City ?? "").Trim())
-                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
-                FilterCityOptions.Add(s);
-
-            FilterGrntiOptions.Clear();
-            FilterGrntiOptions.Add(AllOption);
-            foreach (var s in Grnti.Select(g => (g.Codrub ?? "").Trim())
-                                    .Where(s => s.Length == 2).Distinct().OrderBy(s => s))
-                FilterGrntiOptions.Add(s);
-
-            FilterExhitypeOptions.Clear();
-            FilterExhitypeOptions.Add(AllOption);
-            foreach (var s in ExhibitEditViewModel.ExhibitOptions)
-                FilterExhitypeOptions.Add(s);
-
-            FilterTypeOptions.Clear();
-            FilterTypeOptions.Add(AllOption);
-            foreach (var s in ExhibitEditViewModel.TypeOptions)
-                FilterTypeOptions.Add(s);
-
-            FilterRegion = FilterRegionOptions.Contains(keepRegion) ? keepRegion : AllOption;
-            FilterObl = FilterOblOptions.Contains(keepObl) ? keepObl : AllOption;
-            FilterCity = FilterCityOptions.Contains(keepCity) ? keepCity : AllOption;
-            FilterGrnti = FilterGrntiOptions.Contains(keepGrnti) ? keepGrnti : AllOption;
-            FilterExhitype = FilterExhitypeOptions.Contains(keepExh) ? keepExh : AllOption;
-            FilterType = FilterTypeOptions.Contains(keepType) ? keepType : AllOption;
+            RegionFilter.SetValues(FullTable.Select(row => row.Region));
+            OblFilter.SetValues(FullTable.Select(row => row.OblName));
+            CityFilter.SetValues(FullTable.Select(row => row.City));
+            GrntiFilter.SetValues(FullTable.SelectMany(row =>
+                GetMainRubrics(row.Grnti).DefaultIfEmpty("")));
+            ExhitypeFilter.SetValues(FullTable.Select(row => row.Exhitype));
+            TypeFilter.SetValues(FullTable.Select(row => row.Type));
         }
 
         [RelayCommand]
         private void ResetFilters()
         {
-            FilterRegion = AllOption;
-            FilterObl = AllOption;
-            FilterCity = AllOption;
-            FilterGrnti = AllOption;
-            FilterExhitype = AllOption;
-            FilterType = AllOption;
+            _updatingFilters = true;
+            try
+            {
+                foreach (var filter in Filters)
+                    filter.Reset();
+            }
+            finally { _updatingFilters = false; }
             ApplyFiltersAndRefreshStatus();
         }
 

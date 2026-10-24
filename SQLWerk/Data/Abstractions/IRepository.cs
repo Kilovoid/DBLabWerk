@@ -1,4 +1,4 @@
-﻿using SQLWerk.Models;
+using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -20,7 +20,7 @@ namespace SQLWerk.Data.Abstractions
         void Add(ExhibitTableRow row);
         void Update(ExhibitTableRow row);
         void Delete(long id);
-        void DeleteByCodvuz(string codvuz);
+        void DeleteByCodvuz(int codvuz);
     }
 
 

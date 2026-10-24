@@ -198,21 +198,6 @@ namespace SQLWerk.Data.Abstractions
 }
 </file>
 
-<file path="SQLWerk/Data/Abstractions/ITableRow.cs">
-using ExcelDataReader;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface ITableRow
-    {
-        void FillTable(IExcelDataReader reader);
-    }
-}
-</file>
-
 <file path="SQLWerk/Data/Extensions/SqliteCommandExtensions.cs">
 using Microsoft.Data.Sqlite;
 using System;
@@ -608,69 +593,6 @@ public static class RegionCodes
 
     public static string[] Codes => All.Keys.OrderBy(k => k).ToArray();
 }
-</file>
-
-<file path="SQLWerk/Styles/DataGridStyles.axaml">
-<Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-
-    <Style Selector="DataGrid">
-        <Setter Property="Background" Value="#F5F5F5"/>
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="GridLinesVisibility" Value="All"/>
-        <Setter Property="HorizontalGridLinesBrush" Value="#D0D0D0"/>
-        <Setter Property="VerticalGridLinesBrush" Value="#D0D0D0"/>
-        <Setter Property="BorderBrush" Value="#B0B0B0"/>
-        <Setter Property="BorderThickness" Value="1"/>
-    </Style>
-
-    <Style Selector="DataGridColumnHeader">
-        <Setter Property="Background" Value="#E0E0E0"/>
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="BorderBrush" Value="#B0B0B0"/>
-        <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        <Setter Property="Padding" Value="8,4"/>
-    </Style>
-
-    <Style Selector="DataGridRow">
-        <Setter Property="Background" Value="#FAFAFA"/>
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="BorderBrush" Value="#E0E0E0"/>
-        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-    </Style>
-
-    <Style Selector="DataGridRow:nth-child(even)">
-        <Setter Property="Background" Value="#F0F0F0"/>
-    </Style>
-
-    <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
-        <Setter Property="Fill" Value="#E3F2FD"/>
-    </Style>
-
-    <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
-        <Setter Property="Fill" Value="#ADD8E6"/>
-        <Setter Property="Stroke" Value="#87CEEB"/>
-        <Setter Property="StrokeThickness" Value="2"/>
-    </Style>
-
-    <Style Selector="DataGridRow:selected">
-        <Setter Property="Foreground" Value="Black"/>
-    </Style>
-
-    <Style Selector="DataGridCell">
-        <Setter Property="Foreground" Value="Black"/>
-        <Setter Property="BorderBrush" Value="#E0E0E0"/>
-        <Setter Property="BorderThickness" Value="0,0,1,0"/>
-        <Setter Property="Padding" Value="6,4"/>
-    </Style>
-
-    <Style Selector="DataGridCell:selected /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="Black"/>
-    </Style>
-
-</Styles>
 </file>
 
 <file path="SQLWerk/ViewModels/ConfirmViewModel.cs">
@@ -2007,6 +1929,23 @@ public class ViewLocator : IDataTemplate
 ExcelDataReader - знаю только это чудо.
 </file>
 
+<file path="SQLWerk/Data/Abstractions/ITableRow.cs">
+using ExcelDataReader;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface ITableRow
+    {
+        void FillTable(IExcelDataReader reader);
+
+        string? DedupKey { get; }
+    }
+}
+</file>
+
 <file path="SQLWerk/Data/Extensions/SqliteDataReaderExtensions.cs">
 using Microsoft.Data.Sqlite;
 using System;
@@ -2064,188 +2003,83 @@ namespace SQLWerk.Models
 }
 </file>
 
-<file path="SQLWerk/ViewModels/ExhibitEditViewModel.cs">
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using SQLWerk.Models;
-using SQLWerk.Services;
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Text.RegularExpressions;
+<file path="SQLWerk/Styles/DataGridStyles.axaml">
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-namespace SQLWerk.ViewModels;
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="#F5F5F5"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="GridLinesVisibility" Value="All"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="#D0D0D0"/>
+        <Setter Property="VerticalGridLinesBrush" Value="#D0D0D0"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
 
-public partial class GrntiEntryVM : ObservableObject
-{
-    [ObservableProperty] private string _rubric = "";
-    [ObservableProperty] private string _sub = "";
-}
+   <Style Selector="Button.blink">
+        <Style.Animations>
+            <Animation Duration="0:0:0.8" IterationCount="Infinite">
+                <KeyFrame Cue="0%">
+                    <Setter Property="Background" Value="#FFE0B2"/>
+                </KeyFrame>
+                <KeyFrame Cue="50%">
+                    <Setter Property="Background" Value="#FFA726"/>
+                </KeyFrame>
+                <KeyFrame Cue="100%">
+                    <Setter Property="Background" Value="#FFE0B2"/>
+                </KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
 
-public partial class ExhibitEditViewModel : ObservableObject
-{
-    public static List<string> VuzCodes { get; set; } = new();
-    public static List<string> GrntiRubrics { get; set; } = new();
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="#E0E0E0"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="BorderBrush" Value="#B0B0B0"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="Padding" Value="8,4"/>
+    </Style>
 
-    public static readonly string[] TypeOptions =
-    {
-        "Е", "М"
-    };
+    <Style Selector="DataGridRow">
+        <Setter Property="Background" Value="#FAFAFA"/>
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
 
-    public static readonly string[] ExhibitOptions = { "Е", "Н", "П" };
+    <Style Selector="DataGridRow:nth-child(even)">
+        <Setter Property="Background" Value="#F0F0F0"/>
+    </Style>
 
-    private int MaxGrnti = 5;
+    <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="#E3F2FD"/>
+    </Style>
 
-    [ObservableProperty] private string _title = "Добавление выставки";
-    [ObservableProperty] private string _error = "";
+    <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="#ADD8E6"/>
+        <Setter Property="Stroke" Value="#87CEEB"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+    </Style>
 
-    [ObservableProperty] private string _codvuz = "";
-    [ObservableProperty] private string _type = "";
-    [ObservableProperty] private string _regnumber = "";
-    [ObservableProperty] private string _subject = "";
-    [ObservableProperty] private string _bossname = "";
-    [ObservableProperty] private string _bosstitle = "";
-    [ObservableProperty] private string _exhitype = "";
-    [ObservableProperty] private string _vystavki = "";
-    [ObservableProperty] private string _exponat = "";
+    <Style Selector="DataGridRow:selected">
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
 
-    public ObservableCollection<GrntiEntryVM> GrntiEntries { get; } = new();
+    <Style Selector="DataGridCell">
+        <Setter Property="Foreground" Value="Black"/>
+        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        <Setter Property="BorderThickness" Value="0,0,1,0"/>
+        <Setter Property="Padding" Value="6,4"/>
+    </Style>
 
-    public long Id { get; private set; }
-    public string Z2 { get; private set; } = "";
-    public ExhibitTableRow? Result { get; private set; }
-    public event EventHandler? CloseRequested;
+    <Style Selector="DataGridCell:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
 
-    public ExhibitEditViewModel()
-    {
-        for (int i = 0; i < MaxGrnti; i++) GrntiEntries.Add(new GrntiEntryVM());
-    }
-
-    public ExhibitEditViewModel(ExhibitTableRow row) : this()
-    {
-        _title = "Изменение выставки";
-        Id = row.Id;
-        Z2 = row.Z2 ?? "";
-        _codvuz = row.Codvuz ?? "";
-        _type = row.Type ?? "";
-        _regnumber = row.Regnumber ?? "";
-        _subject = row.Subject ?? "";
-        _bossname = row.Bossname ?? "";
-        _bosstitle = row.Bosstitle ?? "";
-        _exhitype = row.Exhitype ?? "";
-        _vystavki = row.Vystavki ?? "";
-        _exponat = row.Exponat ?? "";
-
-        var codes = (row.Grnti ?? "")
-            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Trim())
-            .Where(s => s.Length > 0)
-            .Take(MaxGrnti)
-            .ToList();
-
-        for (int i = 0; i < codes.Count; i++)
-        {
-            var code = codes[i];
-            if (code.Length < 2) continue;
-
-            GrntiEntries[i].Rubric = code.Substring(0, 2);
-            GrntiEntries[i].Sub = code.Length > 3 ? code.Substring(3) : "";
-        }
-    }
-
-    [RelayCommand]
-    private void Save()
-    {
-        var issues = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(Codvuz))
-            issues.Add("Не выбран код ВУЗа");
-
-        if (string.IsNullOrWhiteSpace(Type))
-            issues.Add("Не выбран признак формы");
-
-        if (string.IsNullOrWhiteSpace(Regnumber))
-            issues.Add("Не заполнен регистрационный номер");
-
-        if (string.IsNullOrWhiteSpace(Subject))
-            issues.Add("Не заполнено наименование проекта");
-
-        if (string.IsNullOrWhiteSpace(Bossname))
-            issues.Add("Не заполнен руководитель");
-
-        if (string.IsNullOrWhiteSpace(Bosstitle))
-            issues.Add("Не заполнена должность/степень руководителя");
-
-        if (string.IsNullOrWhiteSpace(Exhitype))
-            issues.Add("Не выбрано наличие экспоната");
-
-        var codes = new List<string>();
-        foreach (var entry in GrntiEntries)
-        {
-            var rub = (entry.Rubric ?? "").Trim();
-            var sub = (entry.Sub ?? "")
-                .Replace("_", "")
-                .Trim()
-                .TrimEnd('.')
-                .Trim();
-
-            if (rub.Length == 0 && sub.Length == 0) continue;
-
-            if (!Regex.IsMatch(rub, @"^\d{2}$"))
-            {
-                issues.Add($"Рубрика ГРНТИ должна быть из двух цифр: '{rub}'");
-                continue;
-            }
-
-            if (sub.Length > 0 && !Regex.IsMatch(sub, @"^\d{2}(\.\d{2})?$"))
-            {
-                issues.Add($"Подрубрика ГРНТИ должна быть XX или XX.XX: '{sub}'");
-                continue;
-            }
-
-            codes.Add(sub.Length == 0 ? rub : $"{rub}.{sub}");
-        }
-
-        if (codes.Count == 0)
-            issues.Add("Не заполнено ни одного кода ГРНТИ");
-
-        if (issues.Count > 0)
-        {
-            Error = string.Join("; ", issues);
-            return;
-        }
-
-        var row = new ExhibitTableRow
-        {
-            Id = Id,
-            Codvuz = Codvuz.Trim(),
-            Z2 = Z2,
-            Type = Type.Trim(),
-            Regnumber = Regnumber.Trim(),
-            Subject = Subject.Trim(),
-            Grnti = GrntiService.ParseGrnti(string.Join(", ", codes)),
-            Bossname = Bossname.Trim(),
-            Bosstitle = Bosstitle.Trim(),
-            Exhitype = Exhitype.Trim(),
-            Vystavki = Vystavki.Trim(),
-            Exponat = Exponat.Trim(),
-        };
-
-        var (ok, reason) = ValidationService.Validate(row);
-        if (!ok) { Error = reason ?? "Ошибка валидации"; return; }
-
-        Result = row;
-        CloseRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    [RelayCommand]
-    private void Cancel()
-    {
-        Result = null;
-        CloseRequested?.Invoke(this, EventArgs.Empty);
-    }
-}
+</Styles>
 </file>
 
 <file path="SQLWerk/ViewModels/GrntiEditViewModel.cs">
@@ -2388,160 +2222,6 @@ namespace SQLWerk.ViewModels;
 
 public abstract class ViewModelBase : ObservableObject
 {
-}
-</file>
-
-<file path="SQLWerk/ViewModels/VuzEditViewModel.cs">
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using SQLWerk.Models;
-using SQLWerk.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace SQLWerk.ViewModels;
-
-public partial class VuzEditViewModel : ObservableObject
-{
-    // Справочники, заполняются из MainWindowViewModel
-    public static List<string> RegionOptions { get; set; } = new();
-    public static List<string> StatusOptions { get; set; } = new();
-    public static List<string> OblOptions { get; set; } = new();
-    public static Dictionary<string, string> OblToName { get; set; } = new();
-
-    // Существующие значения для проверки повторов
-    public static HashSet<string> ExistingCodvuz { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    public static HashSet<string> ExistingZ1 { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    public static HashSet<string> ExistingZ1Full { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-    [ObservableProperty] private string _title = "Добавление ВУЗа";
-    [ObservableProperty] private string _error = "";
-
-    [ObservableProperty] private string _codvuz = "";
-    [ObservableProperty] private string _z1 = "";
-    [ObservableProperty] private string _z1Full = "";
-    [ObservableProperty] private string _z2 = "";
-    [ObservableProperty] private string _region = "";
-    [ObservableProperty] private string _city = "";
-    [ObservableProperty] private string _status = "";
-    [ObservableProperty] private string _obl = "";
-    [ObservableProperty] private string _oblName = "";
-    [ObservableProperty] private string _grVed = "";
-    [ObservableProperty] private string _prof = "";
-
-    public bool IsEditMode { get; private set; }
-    public bool IsAddMode => !IsEditMode;
-    public long Id { get; private set; }
-    public VuzTableRow? Result { get; private set; }
-    public event EventHandler? CloseRequested;
-
-    private string _oldCodvuz = "";
-    private string _oldZ1 = "";
-    private string _oldZ1Full = "";
-
-    public VuzEditViewModel() { }
-
-    public VuzEditViewModel(VuzTableRow row)
-    {
-        IsEditMode = true;
-        _title = "Изменение ВУЗа";
-        Id = row.Id;
-        _oldCodvuz = row.Codvuz ?? "";
-        _oldZ1 = row.Z1 ?? "";
-        _oldZ1Full = row.Z1Full ?? "";
-
-        _codvuz = row.Codvuz ?? "";
-        _z1 = row.Z1 ?? "";
-        _z1Full = row.Z1Full ?? "";
-        _z2 = row.Z2 ?? "";
-        _region = row.Region ?? "";
-        _city = row.City ?? "";
-        _status = row.Status ?? "";
-        _obl = row.Obl ?? "";
-        _oblName = row.OblName ?? "";
-        _grVed = row.GrVed ?? "";
-        _prof = row.Prof ?? "";
-    }
-
-    partial void OnOblChanged(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            OblName = "";
-            return;
-        }
-        OblName = OblToName.TryGetValue(value.Trim(), out var name) ? name : "";
-    }
-
-    [RelayCommand]
-    private void Save()
-    {
-        var issues = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(Codvuz)) issues.Add("Не заполнен код ВУЗа");
-        if (string.IsNullOrWhiteSpace(Z1)) issues.Add("Не заполнено наименование");
-        if (string.IsNullOrWhiteSpace(Z1Full)) issues.Add("Не заполнено полное наименование");
-        if (string.IsNullOrWhiteSpace(Z2)) issues.Add("Не заполнено краткое наименование");
-        if (string.IsNullOrWhiteSpace(Region)) issues.Add("Не выбран федеральный округ");
-        if (string.IsNullOrWhiteSpace(City)) issues.Add("Не заполнен город");
-        if (string.IsNullOrWhiteSpace(Status)) issues.Add("Не выбран тип учреждения");
-        if (string.IsNullOrWhiteSpace(Obl)) issues.Add("Не выбран код региона");
-        else if (string.IsNullOrWhiteSpace(OblName)) issues.Add($"Регион для кода '{Obl}' не найден");
-
-        var c = (Codvuz ?? "").Trim();
-        if (c.Length > 0
-            && ExistingCodvuz.Contains(c)
-            && !string.Equals(c, _oldCodvuz, StringComparison.OrdinalIgnoreCase))
-            issues.Add($"Код ВУЗа '{c}' уже существует");
-
-        var z1 = (Z1 ?? "").Trim();
-        if (z1.Length > 0
-            && ExistingZ1.Contains(z1)
-            && !string.Equals(z1, _oldZ1, StringComparison.OrdinalIgnoreCase))
-            issues.Add($"Наименование '{z1}' уже существует");
-
-        var z1f = (Z1Full ?? "").Trim();
-        if (z1f.Length > 0
-            && ExistingZ1Full.Contains(z1f)
-            && !string.Equals(z1f, _oldZ1Full, StringComparison.OrdinalIgnoreCase))
-            issues.Add($"Полное наименование '{z1f}' уже существует");
-
-        if (issues.Count > 0)
-        {
-            Error = string.Join("; ", issues);
-            return;
-        }
-
-        var row = new VuzTableRow
-        {
-            Id = Id,
-            Codvuz = c,
-            Z1 = z1,
-            Z1Full = z1f,
-            Z2 = (Z2 ?? "").Trim(),
-            Region = (Region ?? "").Trim(),
-            City = (City ?? "").Trim(),
-            Status = (Status ?? "").Trim(),
-            Obl = (Obl ?? "").Trim(),
-            OblName = (OblName ?? "").Trim(),
-            GrVed = string.IsNullOrWhiteSpace(GrVed) ? null : GrVed.Trim(),
-            Prof = string.IsNullOrWhiteSpace(Prof) ? null : Prof.Trim(),
-        };
-
-        var (ok, reason) = ValidationService.Validate(row);
-        if (!ok) { Error = reason ?? "Ошибка валидации"; return; }
-
-        Result = row;
-        CloseRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    [RelayCommand]
-    private void Cancel()
-    {
-        Result = null;
-        CloseRequested?.Invoke(this, EventArgs.Empty);
-    }
 }
 </file>
 
@@ -3424,110 +3104,6 @@ namespace SQLWerk.Data.Sqlite
 }
 </file>
 
-<file path="SQLWerk/Services/CrossValidationService.cs">
-using Microsoft.Extensions.Logging;
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace SQLWerk.Services
-{
-    public class CrossValidationService
-    {
-        private readonly ILogger<CrossValidationService> _logger;
-
-        public CrossValidationService(ILogger<CrossValidationService> logger) => _logger = logger;
-
-        public int RemoveInvalidExhibits(
-            IExhibitRepository exhibitRepo,
-            IVuzRepository vuzRepo,
-            IGrntiRepository grntiRepo)
-        {
-            var validCodvuz = vuzRepo.GetAll()
-                .Where(v => !string.IsNullOrWhiteSpace(v.Codvuz)
-                         && !string.IsNullOrWhiteSpace(v.Z1Full))
-                .Select(v => v.Codvuz!.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            var validRubrics = grntiRepo.GetAll()
-                .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
-                .Select(g => ExtractRubric(g.Codrub!))
-                .Where(r => r.Length == 2)
-                .ToHashSet(StringComparer.Ordinal);
-
-            var exhibits = exhibitRepo.GetAll();
-            var kept = new List<ExhibitTableRow>(exhibits.Count);
-            int removed = 0;
-
-            foreach (var e in exhibits)
-            {
-                var issues = new List<string>();
-
-                var cod = e.Codvuz?.Trim() ?? "";
-                if (cod.Length == 0)
-                    issues.Add("пустой код ВУЗа");
-                else if (!validCodvuz.Contains(cod))
-                    issues.Add($"ВУЗ с кодом '{cod}' не найден");
-
-                var missing = GetMissingRubrics(e.Grnti, validRubrics);
-                if (missing.Count > 0)
-                    issues.Add($"рубрики ГРНТИ не найдены: {string.Join(", ", missing)}");
-
-                if (issues.Count == 0)
-                {
-                    kept.Add(e);
-                }
-                else
-                {
-                    removed++;
-                    _logger.LogWarning(
-                        "Выставка {Id} удалена. Причина: {Reason}",
-                        e.Id, string.Join("; ", issues));
-                }
-            }
-
-            if (removed > 0)
-            {
-                exhibitRepo.Clear();
-                exhibitRepo.SaveAll(kept);
-            }
-
-            return removed;
-        }
-
-        private static string ExtractRubric(string code)
-        {
-            var trimmed = code.Trim();
-            return trimmed.Length >= 2 ? trimmed.Substring(0, 2) : trimmed;
-        }
-
-        private static List<string> GetMissingRubrics(string? grntiString, HashSet<string> valid)
-        {
-            var result = new List<string>();
-            if (string.IsNullOrWhiteSpace(grntiString)) return result;
-
-            var parts = grntiString.Split(
-                new[] { ',', ';' },
-                StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var part in parts)
-            {
-                var rubric = ExtractRubric(part);
-                if (rubric.Length == 2
-                    && !valid.Contains(rubric)
-                    && !result.Contains(rubric))
-                {
-                    result.Add(rubric);
-                }
-            }
-            return result;
-        }
-    }
-}
-</file>
-
 <file path="SQLWerk/Program.cs">
 using Avalonia;
 using System;
@@ -3834,6 +3410,114 @@ namespace SQLWerk.Data.Sqlite
 }
 </file>
 
+<file path="SQLWerk/Services/CrossValidationService.cs">
+using Microsoft.Extensions.Logging;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SQLWerk.Services
+{
+    public class CrossValidationService
+    {
+        private readonly ILogger<CrossValidationService> _logger;
+
+        public CrossValidationService(ILogger<CrossValidationService> logger) => _logger = logger;
+
+        public int RemoveInvalidExhibits(
+            IExhibitRepository exhibitRepo,
+            IVuzRepository vuzRepo,
+            IGrntiRepository grntiRepo)
+        {
+            var validCodvuz = vuzRepo.GetAll()
+                .Where(v => !string.IsNullOrWhiteSpace(v.Codvuz)
+                         && !string.IsNullOrWhiteSpace(v.Z1Full))
+                .Select(v => v.Codvuz!.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var validRubrics = grntiRepo.GetAll()
+                .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
+                .Select(g => ExtractRubric(g.Codrub!))
+                .Where(r => r.Length == 2)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var exhibits = exhibitRepo.GetAll();
+            var kept = new List<ExhibitTableRow>(exhibits.Count);
+            int removed = 0;
+
+            foreach (var e in exhibits)
+            {
+                var issues = new List<string>();
+
+                var cod = e.Codvuz?.Trim() ?? "";
+                if (cod.Length == 0)
+                    issues.Add("пустой код ВУЗа");
+                else if (!validCodvuz.Contains(cod))
+                    issues.Add($"ВУЗ с кодом '{cod}' не найден");
+
+                var missing = GetMissingRubrics(e.Grnti, validRubrics);
+                if (missing.Count > 0)
+                    issues.Add($"рубрики ГРНТИ не найдены: {string.Join(", ", missing)}");
+
+                if (issues.Count == 0)
+                {
+                    kept.Add(e);
+                }
+                else
+                {
+                    removed++;
+
+                    var reg = string.IsNullOrWhiteSpace(e.Regnumber) ? "—" : e.Regnumber.Trim();
+                    var subj = string.IsNullOrWhiteSpace(e.Subject) ? "—" : e.Subject.Trim();
+
+                    _logger.LogWarning(
+                        "Выставка с рег. номером {Regnumber} удалена. Причина: {Reason}",
+                        reg, string.Join("; ", issues));
+                }
+            }
+
+            if (removed > 0)
+            {
+                exhibitRepo.Clear();
+                exhibitRepo.SaveAll(kept);
+            }
+
+            return removed;
+        }
+
+        private static string ExtractRubric(string code)
+        {
+            var trimmed = code.Trim();
+            return trimmed.Length >= 2 ? trimmed.Substring(0, 2) : trimmed;
+        }
+
+        private static List<string> GetMissingRubrics(string? grntiString, HashSet<string> valid)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(grntiString)) return result;
+
+            var parts = grntiString.Split(
+                new[] { ',', ';' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var part in parts)
+            {
+                var rubric = ExtractRubric(part);
+                if (rubric.Length == 2
+                    && !valid.Contains(rubric)
+                    && !result.Contains(rubric))
+                {
+                    result.Add(rubric);
+                }
+            }
+            return result;
+        }
+    }
+}
+</file>
+
 <file path="SQLWerk/Services/ValidationService.cs">
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
@@ -3924,6 +3608,416 @@ namespace SQLWerk.Services
 
             return false;
         }
+    }
+}
+</file>
+
+<file path="SQLWerk/ViewModels/ExhibitEditViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SQLWerk.Models;
+using SQLWerk.Services;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text.RegularExpressions;
+
+namespace SQLWerk.ViewModels;
+
+public partial class GrntiEntryVM : ObservableObject
+{
+    [ObservableProperty] private string _rubric = "";
+    [ObservableProperty] private string _sub = "";
+}
+
+public partial class ExhibitEditViewModel : ObservableObject
+{
+    public static List<string> VuzCodes { get; set; } = new();
+    public static List<string> GrntiRubrics { get; set; } = new();
+
+    public static readonly string[] TypeOptions =
+    {
+        "Е", "М"
+    };
+
+    public static readonly string[] ExhibitOptions = { "Е", "Н", "П" };
+
+    private int MaxGrnti = 5;
+
+    [ObservableProperty] private string _title = "Добавление выставки";
+    [ObservableProperty] private string _error = "";
+
+    [ObservableProperty] private string _codvuz = "";
+    [ObservableProperty] private string _type = "";
+    [ObservableProperty] private string _regnumber = "";
+    [ObservableProperty] private string _subject = "";
+    [ObservableProperty] private string _bossname = "";
+    [ObservableProperty] private string _bosstitle = "";
+    [ObservableProperty] private string _exhitype = "";
+    [ObservableProperty] private string _vystavki = "";
+    [ObservableProperty] private string _exponat = "";
+
+    public ObservableCollection<GrntiEntryVM> GrntiEntries { get; } = new();
+
+    public long Id { get; private set; }
+    public string Z2 { get; private set; } = "";
+    public ExhibitTableRow? Result { get; private set; }
+    public event EventHandler? CloseRequested;
+
+    public ExhibitEditViewModel()
+    {
+        for (int i = 0; i < MaxGrnti; i++) GrntiEntries.Add(new GrntiEntryVM());
+    }
+
+    public ExhibitEditViewModel(ExhibitTableRow row) : this()
+    {
+        _title = "Изменение выставки";
+        Id = row.Id;
+        Z2 = row.Z2 ?? "";
+        _codvuz = row.Codvuz ?? "";
+        _type = row.Type ?? "";
+        _regnumber = row.Regnumber ?? "";
+        _subject = row.Subject ?? "";
+        _bossname = row.Bossname ?? "";
+        _bosstitle = row.Bosstitle ?? "";
+        _exhitype = row.Exhitype ?? "";
+        _vystavki = row.Vystavki ?? "";
+        _exponat = row.Exponat ?? "";
+
+        var codes = (row.Grnti ?? "")
+            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .Where(s => s.Length > 0)
+            .Take(MaxGrnti)
+            .ToList();
+
+        for (int i = 0; i < codes.Count; i++)
+        {
+            var code = codes[i];
+            if (code.Length < 2) continue;
+
+            GrntiEntries[i].Rubric = code.Substring(0, 2);
+            GrntiEntries[i].Sub = code.Length > 3 ? code.Substring(3) : "";
+        }
+    }
+
+    [RelayCommand]
+    private void Save()
+    {
+        var issues = new List<string>();
+
+        var cod = (Codvuz ?? "").Trim();
+        if (cod.Length == 0)
+            issues.Add("Не выбран код ВУЗа");
+        else if (!VuzCodes.Contains(cod))
+            issues.Add($"Код ВУЗа '{cod}' не найден");
+
+        var type = (Type ?? "").Trim();
+        if (type.Length == 0)
+            issues.Add("Не выбран признак формы");
+        else if (!TypeOptions.Contains(type))
+            issues.Add($"Недопустимый признак формы: '{type}'");
+
+        var exh = (Exhitype ?? "").Trim();
+        if (exh.Length == 0)
+            issues.Add("Не выбрано наличие экспоната");
+        else if (!ExhibitOptions.Contains(exh))
+            issues.Add($"Недопустимое значение наличия экспоната: '{exh}'");
+
+        if (string.IsNullOrWhiteSpace(Regnumber))
+            issues.Add("Не заполнен регистрационный номер");
+
+        if (string.IsNullOrWhiteSpace(Subject))
+            issues.Add("Не заполнено наименование проекта");
+
+        if (string.IsNullOrWhiteSpace(Bossname))
+            issues.Add("Не заполнен руководитель");
+
+        if (string.IsNullOrWhiteSpace(Bosstitle))
+            issues.Add("Не заполнена должность/степень руководителя");
+
+        var codes = new List<string>();
+        foreach (var entry in GrntiEntries)
+        {
+            var rub = (entry.Rubric ?? "").Trim();
+            var sub = (entry.Sub ?? "").Replace("_", "").Trim().TrimEnd('.').Trim();
+
+            if (rub.Length == 0 && sub.Length == 0) continue;
+
+            if (!Regex.IsMatch(rub, @"^\d{2}$"))
+            {
+                issues.Add($"Рубрика ГРНТИ должна быть из двух цифр: '{rub}'");
+                continue;
+            }
+
+            if (!GrntiRubrics.Contains(rub))
+            {
+                issues.Add($"Рубрика ГРНТИ '{rub}' не найдена в справочнике");
+                continue;
+            }
+
+            if (sub.Length == 0)
+            {
+                issues.Add($"Для рубрики ГРНТИ '{rub}' не заполнена подрубрика");
+                continue;
+            }
+
+            if (!Regex.IsMatch(sub, @"^\d{2}(\.\d{2})?$"))
+            {
+                issues.Add($"Подрубрика ГРНТИ должна быть XX или XX.XX: '{sub}'");
+                continue;
+            }
+
+            codes.Add($"{rub}.{sub}");
+        }
+
+        if (codes.Count == 0)
+            issues.Add("Не заполнено ни одного кода ГРНТИ");
+
+        if (issues.Count > 0)
+        {
+            Error = string.Join("; ", issues);
+            return;
+        }
+
+        var row = new ExhibitTableRow
+        {
+            Id = Id,
+            Codvuz = cod,
+            Z2 = Z2,
+            Type = type,
+            Regnumber = Regnumber.Trim(),
+            Subject = Subject.Trim(),
+            Grnti = GrntiService.ParseGrnti(string.Join(", ", codes)),
+            Bossname = Bossname.Trim(),
+            Bosstitle = Bosstitle.Trim(),
+            Exhitype = exh,
+            Vystavki = Vystavki.Trim(),
+            Exponat = Exponat.Trim(),
+        };
+
+        var (ok, reason) = ValidationService.Validate(row);
+        if (!ok) { Error = reason ?? "Ошибка валидации"; return; }
+
+        Result = row;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        Result = null;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+}
+</file>
+
+<file path="SQLWerk/ViewModels/VuzEditViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SQLWerk.Models;
+using SQLWerk.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SQLWerk.ViewModels;
+
+public partial class VuzEditViewModel : ObservableObject
+{
+    public static List<string> RegionOptions { get; set; } = new();
+    public static List<string> StatusOptions { get; set; } = new();
+    public static List<string> OblOptions { get; set; } = new();
+    public static Dictionary<string, string> OblToName { get; set; } = new();
+
+    public static HashSet<string> ExistingCodvuz { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public static HashSet<string> ExistingZ1 { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public static HashSet<string> ExistingZ1Full { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    [ObservableProperty] private string _title = "Добавление ВУЗа";
+    [ObservableProperty] private string _error = "";
+
+    [ObservableProperty] private string _codvuz = "";
+    [ObservableProperty] private string _z1 = "";
+    [ObservableProperty] private string _z1Full = "";
+    [ObservableProperty] private string _z2 = "";
+    [ObservableProperty] private string _region = "";
+    [ObservableProperty] private string _city = "";
+    [ObservableProperty] private string _status = "";
+    [ObservableProperty] private string _obl = "";
+    [ObservableProperty] private string _oblName = "";
+    [ObservableProperty] private string _grVed = "";
+    [ObservableProperty] private string _prof = "";
+
+    public bool IsEditMode { get; private set; }
+    public bool IsAddMode => !IsEditMode;
+    public long Id { get; private set; }
+    public VuzTableRow? Result { get; private set; }
+    public event EventHandler? CloseRequested;
+
+    private string _oldCodvuz = "";
+    private string _oldZ1 = "";
+    private string _oldZ1Full = "";
+
+    public VuzEditViewModel() { }
+
+    partial void OnZ1Changed(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Z1 = filtered;
+    }
+
+    partial void OnZ1FullChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Z1Full = filtered;
+    }
+
+    partial void OnZ2Changed(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Z2 = filtered;
+    }
+
+    partial void OnRegionChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Region = filtered;
+    }
+
+    partial void OnCityChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) City = filtered;
+    }
+
+    partial void OnOblNameChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) OblName = filtered;
+    }
+
+    partial void OnStatusChanged(string value)
+    {
+        var filtered = RemoveDigits(value);
+        if (filtered != value) Status = filtered;
+    }
+
+    private static string RemoveDigits(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return value ?? "";
+        return new string(value.Where(c => !char.IsDigit(c)).ToArray());
+    }
+    partial void OnCodvuzChanged(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+
+        var digitsOnly = new string(value.Where(char.IsDigit).ToArray());
+        if (digitsOnly != value)
+            Codvuz = digitsOnly;
+    }
+
+    public VuzEditViewModel(VuzTableRow row)
+    {
+        IsEditMode = true;
+        _title = "Изменение ВУЗа";
+        Id = row.Id;
+        _oldCodvuz = row.Codvuz ?? "";
+        _oldZ1 = row.Z1 ?? "";
+        _oldZ1Full = row.Z1Full ?? "";
+
+        _codvuz = row.Codvuz ?? "";
+        _z1 = row.Z1 ?? "";
+        _z1Full = row.Z1Full ?? "";
+        _z2 = row.Z2 ?? "";
+        _region = row.Region ?? "";
+        _city = row.City ?? "";
+        _status = row.Status ?? "";
+        _obl = row.Obl ?? "";
+        _oblName = row.OblName ?? "";
+        _grVed = row.GrVed ?? "";
+        _prof = row.Prof ?? "";
+    }
+
+    partial void OnOblChanged(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            OblName = "";
+            return;
+        }
+        OblName = OblToName.TryGetValue(value.Trim(), out var name) ? name : "";
+    }
+
+    [RelayCommand]
+    private void Save()
+    {
+        var issues = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(Codvuz)) issues.Add("Не заполнен код ВУЗа");
+        if (string.IsNullOrWhiteSpace(Z1)) issues.Add("Не заполнено наименование");
+        if (string.IsNullOrWhiteSpace(Z1Full)) issues.Add("Не заполнено полное наименование");
+        if (string.IsNullOrWhiteSpace(Z2)) issues.Add("Не заполнено краткое наименование");
+        if (string.IsNullOrWhiteSpace(Region)) issues.Add("Не выбран федеральный округ");
+        if (string.IsNullOrWhiteSpace(City)) issues.Add("Не заполнен город");
+        if (string.IsNullOrWhiteSpace(Status)) issues.Add("Не выбран тип учреждения");
+        if (string.IsNullOrWhiteSpace(Obl)) issues.Add("Не выбран код региона");
+        else if (!OblToName.ContainsKey((Obl ?? "").Trim()))
+            issues.Add($"Регион для кода '{Obl}' не найден");
+
+        var c = (Codvuz ?? "").Trim();
+        if (c.Length > 0
+            && ExistingCodvuz.Contains(c)
+            && !string.Equals(c, _oldCodvuz, StringComparison.OrdinalIgnoreCase))
+            issues.Add($"Код ВУЗа '{c}' уже существует");
+
+        var z1 = (Z1 ?? "").Trim();
+        if (z1.Length > 0
+            && ExistingZ1.Contains(z1)
+            && !string.Equals(z1, _oldZ1, StringComparison.OrdinalIgnoreCase))
+            issues.Add($"Наименование '{z1}' уже существует");
+
+        var z1f = (Z1Full ?? "").Trim();
+        if (z1f.Length > 0
+            && ExistingZ1Full.Contains(z1f)
+            && !string.Equals(z1f, _oldZ1Full, StringComparison.OrdinalIgnoreCase))
+            issues.Add($"Полное наименование '{z1f}' уже существует");
+
+        if (issues.Count > 0)
+        {
+            Error = string.Join("; ", issues);
+            return;
+        }
+
+        var row = new VuzTableRow
+        {
+            Id = Id,
+            Codvuz = c,
+            Z1 = z1,
+            Z1Full = z1f,
+            Z2 = (Z2 ?? "").Trim(),
+            Region = (Region ?? "").Trim(),
+            City = (City ?? "").Trim(),
+            Status = (Status ?? "").Trim(),
+            Obl = (Obl ?? "").Trim(),
+            OblName = (OblName ?? "").Trim(),
+            GrVed = string.IsNullOrWhiteSpace(GrVed) ? null : GrVed.Trim(),
+            Prof = string.IsNullOrWhiteSpace(Prof) ? null : Prof.Trim(),
+        };
+
+        var (ok, reason) = ValidationService.Validate(row);
+        if (!ok) { Error = reason ?? "Ошибка валидации"; return; }
+
+        Result = row;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        Result = null;
+        CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 }
 </file>
@@ -4434,6 +4528,8 @@ namespace SQLWerk.Models
             Codrub = ExcelReader.Get(r, 0)?.Trim() ?? "";
             Rubrika = ExcelReader.Get(r, 1)?.Trim() ?? "";
         }
+
+        public string? DedupKey => string.IsNullOrWhiteSpace(Codrub) ? null : Codrub.Trim();
     }
 }
 </file>
@@ -4484,56 +4580,8 @@ namespace SQLWerk.Models
             GrVed = ExcelReader.Get(r, 9)?.Trim() ?? "";
             Prof = ExcelReader.Get(r, 10)?.Trim() ?? "";
         }
-    }
-}
-</file>
 
-<file path="SQLWerk/Models/ExhibitTableRow.cs">
-using ExcelDataReader;
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Services;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Models
-{
-    public class ExhibitTableRow : ITableRow
-    {
-        public static readonly string[] ExpectedHeader =
-        {
-            "codvuz", "z2", "type", "regnumber", "subject",
-            "grnti", "bossname", "bosstitle", "exhitype", "vystavki",
-            "exponat"
-        };
-
-        public long Id { get; set; }
-        public string? Codvuz { get; set; }
-        public string? Z2 { get; set; }
-        public string? Type { get; set; }
-        public string? Regnumber { get; set; }
-        public string? Subject { get; set; }
-        public string? Grnti { get; set; }
-        public string? Bossname { get; set; }
-        public string? Bosstitle { get; set; }
-        public string? Exhitype { get; set; }
-        public string? Vystavki { get; set; }
-        public string? Exponat { get; set; }
-
-        public void FillTable(IExcelDataReader r)
-        {
-            Codvuz = ExcelReader.Get(r, 0)?.Trim() ?? "";
-            Z2 = ExcelReader.Get(r, 1)?.Trim() ?? "";
-            Type = ExcelReader.Get(r, 2)?.Trim() ?? "";
-            Regnumber = ExcelReader.Get(r, 3)?.Trim() ?? "";
-            Subject = ExcelReader.Get(r, 4)?.Trim() ?? "";
-            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5)) ?? "";
-            Bossname = ExcelReader.Get(r, 6)?.Trim() ?? "";
-            Bosstitle = ExcelReader.Get(r, 7)?.Trim() ?? "";
-            Exhitype = ExcelReader.Get(r, 8)?.Trim() ?? "";
-            Vystavki = ExcelReader.Get(r, 9)?.Trim() ?? "";
-            Exponat = ExcelReader.Get(r, 10)?.Trim() ?? "";
-        }
+        public string? DedupKey => string.IsNullOrWhiteSpace(Codvuz) ? null : Codvuz.Trim();
     }
 }
 </file>
@@ -4588,6 +4636,58 @@ namespace SQLWerk.Models
     <Folder Include="Styles\" />
   </ItemGroup>
 </Project>
+</file>
+
+<file path="SQLWerk/Models/ExhibitTableRow.cs">
+using ExcelDataReader;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Services;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Models
+{
+    public class ExhibitTableRow : ITableRow
+    {
+        public static readonly string[] ExpectedHeader =
+        {
+            "codvuz", "z2", "type", "regnumber", "subject",
+            "grnti", "bossname", "bosstitle", "exhitype", "vystavki",
+            "exponat"
+        };
+
+        public long Id { get; set; }
+        public string? Codvuz { get; set; }
+        public string? Z2 { get; set; }
+        public string? Type { get; set; }
+        public string? Regnumber { get; set; }
+        public string? Subject { get; set; }
+        public string? Grnti { get; set; }
+        public string? Bossname { get; set; }
+        public string? Bosstitle { get; set; }
+        public string? Exhitype { get; set; }
+        public string? Vystavki { get; set; }
+        public string? Exponat { get; set; }
+
+        public void FillTable(IExcelDataReader r)
+        {
+            Codvuz = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Z2 = ExcelReader.Get(r, 1)?.Trim() ?? "";
+            Type = ExcelReader.Get(r, 2)?.Trim() ?? "";
+            Regnumber = ExcelReader.Get(r, 3)?.Trim() ?? "";
+            Subject = ExcelReader.Get(r, 4)?.Trim() ?? "";
+            Grnti = GrntiService.ParseGrnti(ExcelReader.Get(r, 5)) ?? "";
+            Bossname = ExcelReader.Get(r, 6)?.Trim() ?? "";
+            Bosstitle = ExcelReader.Get(r, 7)?.Trim() ?? "";
+            Exhitype = ExcelReader.Get(r, 8)?.Trim() ?? "";
+            Vystavki = ExcelReader.Get(r, 9)?.Trim() ?? "";
+            Exponat = ExcelReader.Get(r, 10)?.Trim() ?? "";
+        }
+
+        public string? DedupKey => null;
+    }
+}
 </file>
 
 <file path="SQLWerk/Services/ExcelReader.cs">
@@ -4739,13 +4839,11 @@ namespace SQLWerk.Services
 </file>
 
 <file path="SQLWerk/Services/ImportService.cs">
+using Microsoft.Extensions.Logging;
 using SQLWerk.Data.Abstractions;
-using SQLWerk.Data.Sqlite;
-using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace SQLWerk.Services
 {
@@ -4753,10 +4851,14 @@ namespace SQLWerk.Services
     {
         private readonly IExcelReader _reader;
         private readonly IRepository<T> _repo;
-        public ImportService(IExcelReader reader, IRepository<T> repo)
+        private readonly ILogger<ImportService<T>> _logger;
+
+        public ImportService(IExcelReader reader, IRepository<T> repo,
+            ILogger<ImportService<T>> logger)
         {
             _reader = reader;
             _repo = repo;
+            _logger = logger;
         }
 
         public (int imported, int total) ImportIfEmpty(string? xlsPath)
@@ -4764,9 +4866,9 @@ namespace SQLWerk.Services
             _repo.EnsureCreated();
 
             if (_repo.Count() > 0) return (0, _repo.Count());
-            if (xlsPath is null || !File.Exists(xlsPath)) return(0, 0);
+            if (xlsPath is null || !File.Exists(xlsPath)) return (0, 0);
 
-            var read = _reader.Parse<T>(xlsPath);
+            var read = Dedup(_reader.Parse<T>(xlsPath));
             _repo.SaveAll(read);
             return (read.Count, read.Count);
         }
@@ -4775,14 +4877,46 @@ namespace SQLWerk.Services
         {
             _repo.EnsureCreated();
             _repo.Clear();
-            if (_repo.Count() > 0) return (0, _repo.Count());
             if (xlsPath is null || !File.Exists(xlsPath)) return (0, 0);
 
-            var read = _reader.Parse<T>(xlsPath);
+            var read = Dedup(_reader.Parse<T>(xlsPath));
             _repo.SaveAll(read);
             return (read.Count, read.Count);
         }
+
         public int Count() => _repo.Count();
+
+        private List<T> Dedup(List<T> rows)
+        {
+            var result = new List<T>(rows.Count);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fileName = "";
+
+            int removed = 0;
+            foreach (var r in rows)
+            {
+                var key = r.DedupKey;
+                if (string.IsNullOrEmpty(key))
+                {
+                    result.Add(r);
+                    continue;
+                }
+
+                if (seen.Add(key))
+                {
+                    result.Add(r);
+                }
+                else
+                {
+                    removed++;
+                    _logger.LogWarning(
+                        "Дубликат в файле {File}: {Type} с ключом '{Key}' пропущен",
+                        fileName, typeof(T).Name, key);
+                }
+            }
+
+            return result;
+        }
     }
 }
 </file>
@@ -4886,195 +5020,287 @@ public partial class App : Application
         x:DataType="vm:MainWindowViewModel"
         Width="1080" Height="600"
         Title="Выставки МО">
-    <DockPanel>
-        <Menu DockPanel.Dock="Top">
-            <MenuItem Header="Таблицы">
-                <MenuItem Header="Выставки"
+	<DockPanel>
+		<Menu DockPanel.Dock="Top">
+			<MenuItem Header="Таблицы">
+				<MenuItem Header="Выставки"
                           Command="{Binding SelectExhibitsCommand}" />
-                <MenuItem Header="ВУЗы"
+				<MenuItem Header="ВУЗы"
                           Command="{Binding SelectVuzCommand}" />
-                <MenuItem Header="ГРНТИ"
+				<MenuItem Header="ГРНТИ"
                           Command="{Binding SelectGrntiCommand}" />
-                <Separator />
-                <MenuItem Header="Вся информация"
+				<Separator />
+				<MenuItem Header="Вся информация"
                           Command="{Binding SelectFullCommand}" />
-            </MenuItem>
+			</MenuItem>
 
-            <MenuItem Header="Загрузка данных">
-                <MenuItem Header="Выбрать файлы Excel"
+			<MenuItem Header="Загрузка данных">
+				<MenuItem Header="Выбрать файлы Excel"
                           Command="{Binding LoadCommand}" />
-            </MenuItem>
-        </Menu>
+			</MenuItem>
+		</Menu>
 
-        <Border DockPanel.Dock="Bottom"
+		<Border DockPanel.Dock="Bottom"
                 Background="#EFEFEF"
                 Padding="8,4"
                 BorderBrush="#CCCCCC"
                 BorderThickness="0,1,0,0">
-            <Grid ColumnDefinitions="*,Auto,Auto">
-                <TextBlock Grid.Column="0"
+			<Grid ColumnDefinitions="*,Auto,Auto">
+				<TextBlock Grid.Column="0"
                            Text="{Binding Status}"
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" />
 
-                <TextBlock Grid.Column="1"
+				<TextBlock Grid.Column="1"
                            Text="{Binding WarningCount, StringFormat='Предупреждений: {0}'}"
                            VerticalAlignment="Center"
                            Margin="12,0,12,0" />
 
-                <Button Grid.Column="2"
+				<Button Grid.Column="2"
                         Content="Журнал"
                         VerticalAlignment="Center"
                         IsEnabled="{Binding !ShowErrorScreen}"
-                        Classes.blink="{Binding HasErrors}"
+                        Classes.blink="{Binding IsBlinking}"
                         Command="{Binding ShowLogCommand}" />
-            </Grid>
-        </Border>
+			</Grid>
+		</Border>
 
-        <Grid>
-            <Grid IsVisible="{Binding !ShowErrorScreen}">
-                <Grid IsVisible="{Binding ShowExhibits}" RowDefinitions="Auto,*">
-                    <StackPanel Grid.Row="0" Orientation="Horizontal"
+		<Grid>
+			<Grid IsVisible="{Binding !ShowErrorScreen}">
+				<Grid IsVisible="{Binding ShowExhibits}" RowDefinitions="Auto,*">
+					<StackPanel Grid.Row="0" Orientation="Horizontal"
                                 Spacing="8" Margin="8,8,8,8">
-                        <Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
-                        <Button Content="Изменить"
+						<Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
+						<Button Content="Изменить"
                                 Command="{Binding EditExhibitCommand}"
                                 CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
-                        <Button Content="Удалить"
+						<Button Content="Удалить"
                                 Command="{Binding DeleteExhibitCommand}"
                                 CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
-                    </StackPanel>
+					</StackPanel>
 
-                    <DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
+					<DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
                               ItemsSource="{Binding Exhibits}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-                            <DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
-                            <DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
-                            <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
-                            <DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
-                            <DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
-                            <DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
-                            <DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
-                            <DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
-                            <DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
+						<DataGrid.ContextMenu>
+							<ContextMenu>
+								<MenuItem Header="Изменить"
+										  Command="{Binding EditExhibitCommand}"
+										  CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+								<MenuItem Header="Удалить"
+										  Command="{Binding DeleteExhibitCommand}"
+										  CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+							</ContextMenu>
+						</DataGrid.ContextMenu>
+						<DataGrid.Columns>
+							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+							<DataGridTextColumn Header="Признак формы" Binding="{Binding Type}" />
+							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+							<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+							<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+							<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+							<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+							<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+							<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+							<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+						</DataGrid.Columns>
+					</DataGrid>
+				</Grid>
 
-                <Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
-                    <StackPanel Grid.Row="0" Orientation="Horizontal"
+				<Grid IsVisible="{Binding ShowVuz}" RowDefinitions="Auto,*">
+					<StackPanel Grid.Row="0" Orientation="Horizontal"
                                 Spacing="8" Margin="8,8,8,8">
-                        <Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
-                        <Button Content="Изменить"
+						<Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
+						<Button Content="Изменить"
                                 Command="{Binding EditVuzCommand}"
                                 CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
-                        <Button Content="Удалить"
+						<Button Content="Удалить"
                                 Command="{Binding DeleteVuzCommand}"
                                 CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
-                    </StackPanel>
+					</StackPanel>
 
-                    <DataGrid x:Name="VuzGrid" Grid.Row="1"
+					<DataGrid x:Name="VuzGrid" Grid.Row="1"
                               ItemsSource="{Binding Vuzes}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-                            <DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
-                            <DataGridTextColumn Header="Полное наименование" Binding="{Binding Z1Full}" />
-                            <DataGridTextColumn Header="Краткое наименование" Binding="{Binding Z2}" />
-                            <DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
-                            <DataGridTextColumn Header="Город" Binding="{Binding City}" />
-                            <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
-                            <DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
-                            <DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
-                            <DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
-                            <DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
+						<DataGrid.ContextMenu>
+							<ContextMenu>
+								<MenuItem Header="Изменить"
+										  Command="{Binding EditExhibitCommand}"
+										  CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+								<MenuItem Header="Удалить"
+										  Command="{Binding DeleteExhibitCommand}"
+										  CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+							</ContextMenu>
+						</DataGrid.ContextMenu>
+						<DataGrid.Columns>
+							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+							<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+							<DataGridTextColumn Header="Полное наименование" Binding="{Binding Z1Full}" />
+							<DataGridTextColumn Header="Краткое наименование" Binding="{Binding Z2}" />
+							<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+							<DataGridTextColumn Header="Город" Binding="{Binding City}" />
+							<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+							<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+							<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+							<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+							<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+						</DataGrid.Columns>
+					</DataGrid>
+				</Grid>
 
-                <Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
-                    <StackPanel Grid.Row="0" Orientation="Horizontal"
+				<Grid IsVisible="{Binding ShowGrnti}" RowDefinitions="Auto,*">
+					<StackPanel Grid.Row="0" Orientation="Horizontal"
                                 Spacing="8" Margin="8,8,8,8">
-                        <Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
-                        <Button Content="Изменить"
+						<Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
+						<Button Content="Изменить"
                                 Command="{Binding EditGrntiCommand}"
                                 CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
-                        <Button Content="Удалить"
+						<Button Content="Удалить"
                                 Command="{Binding DeleteGrntiCommand}"
                                 CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
-                    </StackPanel>
+					</StackPanel>
 
-                    <DataGrid x:Name="GrntiGrid"
+					<DataGrid x:Name="GrntiGrid"
                               Grid.Row="1"
                               ItemsSource="{Binding Grnti}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
-                            <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
+						<DataGrid.ContextMenu>
+							<ContextMenu>
+								<MenuItem Header="Изменить"
+										  Command="{Binding EditExhibitCommand}"
+										  CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+								<MenuItem Header="Удалить"
+										  Command="{Binding DeleteExhibitCommand}"
+										  CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+							</ContextMenu>
+						</DataGrid.ContextMenu>
+						<DataGrid.Columns>
+							<DataGridTextColumn Header="Код рубрики" Binding="{Binding Codrub}"/>
+							<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}"/>
+						</DataGrid.Columns>
+					</DataGrid>
+				</Grid>
 
-                <DataGrid ItemsSource="{Binding FullTable}"
-                          AutoGenerateColumns="False"
-                          IsVisible="{Binding ShowAll}"
-                          IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
-                        <DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
-                        <DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
-                        <DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
-                        <DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
-                        <DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
-                        <DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
-                        <DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
-                        <DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
-                        <DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
-                        <DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
-                        <DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
-                        <DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
-                        <DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
-                        <DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
-                        <DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
-                        <DataGridTextColumn Header="Город" Binding="{Binding City}" />
-                        <DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
-                        <DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
-                        <DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
-                        <DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
-                    </DataGrid.Columns>
-                </DataGrid>
-            </Grid>
+				<Grid IsVisible="{Binding ShowAll}" RowDefinitions="Auto,*">
+					<Border Grid.Row="0"
+                            Background="#F0F0F0"
+                            BorderBrush="#CCCCCC"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="8"
+                            Margin="8,8,8,8">
+						<StackPanel Orientation="Vertical" Spacing="6">
+							<TextBlock Text="Фильтры" FontWeight="SemiBold"/>
 
-            <Grid IsVisible="{Binding ShowErrorScreen}" Margin="16">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Top"
+							<Grid ColumnDefinitions="*,8,*,8,*,8,*,8,*,8,*">
+								<StackPanel Grid.Column="0">
+									<TextBlock Text="Федеральный округ" FontSize="11"/>
+									<ComboBox ItemsSource="{Binding FilterRegionOptions}"
+                                              SelectedItem="{Binding FilterRegion}"
+                                              HorizontalAlignment="Stretch"/>
+								</StackPanel>
+
+								<StackPanel Grid.Column="2">
+									<TextBlock Text="Субъект федерации" FontSize="11"/>
+									<ComboBox ItemsSource="{Binding FilterOblOptions}"
+                                              SelectedItem="{Binding FilterObl}"
+                                              HorizontalAlignment="Stretch"/>
+								</StackPanel>
+
+								<StackPanel Grid.Column="4">
+									<TextBlock Text="Город" FontSize="11"/>
+									<ComboBox ItemsSource="{Binding FilterCityOptions}"
+                                              SelectedItem="{Binding FilterCity}"
+                                              HorizontalAlignment="Stretch"/>
+								</StackPanel>
+
+								<StackPanel Grid.Column="6">
+									<TextBlock Text="Рубрика ГРНТИ" FontSize="11"/>
+									<ComboBox ItemsSource="{Binding FilterGrntiOptions}"
+                                              SelectedItem="{Binding FilterGrnti}"
+                                              HorizontalAlignment="Stretch"/>
+								</StackPanel>
+
+								<StackPanel Grid.Column="8">
+									<TextBlock Text="Степень готовности экспоната" FontSize="11"/>
+									<ComboBox ItemsSource="{Binding FilterExhitypeOptions}"
+                                              SelectedItem="{Binding FilterExhitype}"
+                                              HorizontalAlignment="Stretch"/>
+								</StackPanel>
+
+								<StackPanel Grid.Column="10">
+									<TextBlock Text="Признак формы" FontSize="11"/>
+									<ComboBox ItemsSource="{Binding FilterTypeOptions}"
+                                              SelectedItem="{Binding FilterType}"
+                                              HorizontalAlignment="Stretch"/>
+								</StackPanel>
+							</Grid>
+
+							<Button Content="Сбросить фильтры"
+                                    Command="{Binding ResetFiltersCommand}"
+                                    HorizontalAlignment="Right"/>
+						</StackPanel>
+					</Border>
+
+					<DataGrid Grid.Row="1"
+                              ItemsSource="{Binding FilteredFull}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True">
+						<DataGrid.Columns>
+							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
+							<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
+							<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
+							<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Grnti}" />
+							<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Rubrika}" />
+							<DataGridTextColumn Header="Руководитель" Binding="{Binding Bossname}" />
+							<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Bosstitle}" />
+							<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhitype}" />
+							<DataGridTextColumn Header="Выставки" Binding="{Binding Vystavki}" />
+							<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exponat}" />
+							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
+							<DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Z2}" />
+							<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Z1}" />
+							<DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Z1Full}" />
+							<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Status}" />
+							<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Region}" />
+							<DataGridTextColumn Header="Город" Binding="{Binding City}" />
+							<DataGridTextColumn Header="Код региона" Binding="{Binding Obl}" />
+							<DataGridTextColumn Header="Регион" Binding="{Binding OblName}" />
+							<DataGridTextColumn Header="Статус" Binding="{Binding GrVed}" />
+							<DataGridTextColumn Header="Специализация" Binding="{Binding Prof}" />
+						</DataGrid.Columns>
+					</DataGrid>
+				</Grid>
+			</Grid>
+
+			<Grid IsVisible="{Binding ShowErrorScreen}" Margin="16">
+				<DockPanel>
+					<TextBlock DockPanel.Dock="Top"
                                Text="Загрузка завершилась со следующими предупреждениями:"
                                FontSize="16" FontWeight="SemiBold"
                                Margin="0,0,0,8" />
 
-                    <StackPanel DockPanel.Dock="Bottom"
+					<StackPanel DockPanel.Dock="Bottom"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Spacing="8" Margin="0,12,0,0">
-                        <Button Content="Перейти к таблицам"
+						<Button Content="Перейти к таблицам"
                                 Command="{Binding GoToTablesCommand}" />
-                    </StackPanel>
+					</StackPanel>
 
-                    <TextBox Text="{Binding ErrorScreenText}"
+					<TextBox Text="{Binding ErrorScreenText}"
                              IsReadOnly="True"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
                              FontFamily="Consolas"
                              FontSize="12" />
-                </DockPanel>
-            </Grid>
-        </Grid>
-    </DockPanel>
+				</DockPanel>
+			</Grid>
+		</Grid>
+	</DockPanel>
 </Window>
 </file>
 
@@ -5118,6 +5344,10 @@ namespace SQLWerk.ViewModels
         private readonly InMemoryLoggerProvider _logProvider;
         private readonly CrossValidationService _crossValidator;
 
+        private int _sessionStartIndex;
+        private int _sessionWarningCount;
+        private bool _blinkAcknowledged;
+
         [ObservableProperty] private bool _hasErrors;
         [ObservableProperty] private int _warningCount;
 
@@ -5136,11 +5366,100 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private bool _showErrorScreen;
         [ObservableProperty] private string _errorScreenText = "";
 
+        [ObservableProperty] private bool _isBlinking;
+
+        private const string AllOption = "Все";
+
+        [ObservableProperty] private string _filterType = AllOption;
+        [ObservableProperty] private string _filterRegion = AllOption;
+        [ObservableProperty] private string _filterObl = AllOption;
+        [ObservableProperty] private string _filterCity = AllOption;
+        [ObservableProperty] private string _filterGrnti = AllOption;
+        [ObservableProperty] private string _filterExhitype = AllOption;
+
+        public ObservableCollection<string> FilterRegionOptions { get; } = new();
+        public ObservableCollection<string> FilterOblOptions { get; } = new();
+        public ObservableCollection<string> FilterCityOptions { get; } = new();
+        public ObservableCollection<string> FilterGrntiOptions { get; } = new();
+        public ObservableCollection<string> FilterExhitypeOptions { get; } = new();
+        public ObservableCollection<string> FilterTypeOptions { get; } = new();
+
+        [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
+
         public event EventHandler? ShowLogRequested;
         public Func<GrntiTableRow?, Task<GrntiTableRow?>>? GrntiEditHandler { get; set; }
         public Func<string, string, Task<bool>>? ConfirmHandler { get; set; }
         public Func<VuzTableRow?, Task<VuzTableRow?>>? VuzEditHandler { get; set; }
         public Func<ExhibitTableRow?, Task<ExhibitTableRow?>>? ExhibitEditHandler { get; set; }
+
+        partial void OnFilterRegionChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterOblChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterCityChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterGrntiChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterExhitypeChanged(string value) => ApplyFiltersAndRefreshStatus();
+        partial void OnFilterTypeChanged(string value) => ApplyFiltersAndRefreshStatus();
+
+        private void ApplyFiltersAndRefreshStatus()
+        {
+            ApplyFilters();
+
+            RowCount = FilteredFull.Count;
+            Status = $"Вся информация (фильтр): {RowCount} строк";
+        }
+
+        private void ApplyFilters()
+        {
+            bool noFilters =
+                FilterRegion == AllOption &&
+                FilterObl == AllOption &&
+                FilterCity == AllOption &&
+                FilterGrnti == AllOption &&
+                FilterExhitype == AllOption &&
+                FilterType == AllOption;
+
+            IEnumerable<FullModel> source = FullTable;
+
+            if (!noFilters)
+            {
+                source = source.Where(f =>
+                {
+                    if (FilterRegion != AllOption
+                        && !string.Equals(f.Region ?? "", FilterRegion, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (FilterObl != AllOption
+                        && !string.Equals(f.OblName ?? "", FilterObl, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (FilterCity != AllOption
+                        && !string.Equals(f.City ?? "", FilterCity, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (FilterExhitype != AllOption
+                        && !string.Equals(f.Exhitype ?? "", FilterExhitype, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (FilterType != AllOption
+                        && !string.Equals(f.Type ?? "", FilterType, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (FilterGrnti != AllOption)
+                    {
+                        var codes = (f.Grnti ?? "")
+                            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim());
+                        if (!codes.Any(c => c.StartsWith(FilterGrnti, StringComparison.Ordinal)))
+                            return false;
+                    }
+
+                    return true;
+                });
+            }
+
+            FilteredFull = new ObservableCollection<FullModel>(source);
+        }
+
+
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
             ImportService<VuzTableRow> vuzImport,
@@ -5172,12 +5491,36 @@ namespace SQLWerk.ViewModels
         }
 
         [RelayCommand]
-        private void ShowLog() => ShowLogRequested?.Invoke(this, EventArgs.Empty);
+        private void ShowLog()
+        {
+            _blinkAcknowledged = true;
+            UpdateBlinking();
+            ShowLogRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         private void OnLogChanged(object? sender, EventArgs e)
         {
-            HasErrors = _logProvider.HasWarnings;
-            WarningCount = _logProvider.Entries.Count(x => x.Level >= LogLevel.Warning);
+            var session = _logProvider.Entries.Skip(_sessionStartIndex).ToList();
+            var newCount = session.Count(x => x.Level >= LogLevel.Warning);
+
+            HasErrors = newCount > 0;
+            WarningCount = newCount;
+            _sessionWarningCount = newCount;
+
+            UpdateBlinking();
+        }
+
+        private void StartNewSession()
+        {
+            _sessionStartIndex = _logProvider.Entries.Count;
+            _sessionWarningCount = 0;
+            _blinkAcknowledged = false;
+            OnLogChanged(this, EventArgs.Empty);
+        }
+
+        private void UpdateBlinking()
+        {
+            IsBlinking = _sessionWarningCount > 0 && !_blinkAcknowledged;
         }
 
         public void Initialize()
@@ -5276,6 +5619,9 @@ namespace SQLWerk.ViewModels
                 .Select(g => (g.Codrub ?? "").Trim())
                 .Where(s => s.Length > 0)
               .ToHashSet(StringComparer.Ordinal);
+
+            RefreshFilterOptions();
+            ApplyFilters();
             //SelectExhibitsCommand.Execute(null);
         }
         private void LoadAll() //depricated for now
@@ -5308,6 +5654,69 @@ namespace SQLWerk.ViewModels
 
             RowCount = Exhibits.Count;
             Status = $"Выставки: {RowCount} строк";
+        }
+
+        private void RefreshFilterOptions()
+        {
+            var keepRegion = FilterRegion;
+            var keepObl = FilterObl;
+            var keepCity = FilterCity;
+            var keepGrnti = FilterGrnti;
+            var keepExh = FilterExhitype;
+            var keepType = FilterType;
+
+            FilterRegionOptions.Clear();
+            FilterRegionOptions.Add(AllOption);
+            foreach (var s in FullTable.Select(f => (f.Region ?? "").Trim())
+                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
+                FilterRegionOptions.Add(s);
+
+            FilterOblOptions.Clear();
+            FilterOblOptions.Add(AllOption);
+            foreach (var s in FullTable.Select(f => (f.OblName ?? "").Trim())
+                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
+                FilterOblOptions.Add(s);
+
+            FilterCityOptions.Clear();
+            FilterCityOptions.Add(AllOption);
+            foreach (var s in FullTable.Select(f => (f.City ?? "").Trim())
+                                        .Where(s => s.Length > 0).Distinct().OrderBy(s => s))
+                FilterCityOptions.Add(s);
+
+            FilterGrntiOptions.Clear();
+            FilterGrntiOptions.Add(AllOption);
+            foreach (var s in Grnti.Select(g => (g.Codrub ?? "").Trim())
+                                    .Where(s => s.Length == 2).Distinct().OrderBy(s => s))
+                FilterGrntiOptions.Add(s);
+
+            FilterExhitypeOptions.Clear();
+            FilterExhitypeOptions.Add(AllOption);
+            foreach (var s in ExhibitEditViewModel.ExhibitOptions)
+                FilterExhitypeOptions.Add(s);
+
+            FilterTypeOptions.Clear();
+            FilterTypeOptions.Add(AllOption);
+            foreach (var s in ExhibitEditViewModel.TypeOptions)
+                FilterTypeOptions.Add(s);
+
+            FilterRegion = FilterRegionOptions.Contains(keepRegion) ? keepRegion : AllOption;
+            FilterObl = FilterOblOptions.Contains(keepObl) ? keepObl : AllOption;
+            FilterCity = FilterCityOptions.Contains(keepCity) ? keepCity : AllOption;
+            FilterGrnti = FilterGrntiOptions.Contains(keepGrnti) ? keepGrnti : AllOption;
+            FilterExhitype = FilterExhitypeOptions.Contains(keepExh) ? keepExh : AllOption;
+            FilterType = FilterTypeOptions.Contains(keepType) ? keepType : AllOption;
+        }
+
+        [RelayCommand]
+        private void ResetFilters()
+        {
+            FilterRegion = AllOption;
+            FilterObl = AllOption;
+            FilterCity = AllOption;
+            FilterGrnti = AllOption;
+            FilterExhitype = AllOption;
+            FilterType = AllOption;
+            ApplyFiltersAndRefreshStatus();
         }
 
         [RelayCommand]
@@ -5348,15 +5757,16 @@ namespace SQLWerk.ViewModels
             ShowGrnti = false;
             ShowVuz = false;
 
-            RowCount = FullTable.Count;
-            Status = $"Общие данные: {RowCount} строк";
+            ApplyFilters();
+            RowCount = FilteredFull.Count;
+            Status = $"Вся информация: {RowCount} строк";
         }
 
         [RelayCommand]
-
         private async Task LoadAsync()
         {
             _logProvider.Clear();
+            StartNewSession();
 
             var files = await _picker.PickFilesAsync("Выберите файлы, содержащие данные Vyst_mo, VUZ, grntirub", 3);
             if (files is null)
@@ -5493,8 +5903,12 @@ namespace SQLWerk.ViewModels
 
             var ok = await ConfirmHandler(
                 "Удаление рубрики",
-                $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\nДействие необратимо.");
+                $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\n" +
+                $"Все связи с данной рубрикой будут удалены\n" +
+                $"Действие необратимо.");
             if (!ok) return;
+
+            StartNewSession();
 
             _grntiRepo.Delete(row.Id);
             _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
@@ -5541,6 +5955,8 @@ namespace SQLWerk.ViewModels
                 $"Все связанные выставки этого ВУЗа также будут удалены.");
             if (!ok) return;
 
+            StartNewSession();
+
             _vuzRepo.Delete(row.Id);
             _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
 
@@ -5578,13 +5994,13 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         private async Task DeleteExhibitAsync(ExhibitTableRow? row)
         {
-            //WarningCount = 0;
             if (ConfirmHandler is null || row is null) return;
 
             var ok = await ConfirmHandler(
                 "Удаление выставки",
                 $"Удалить выставку с регистрационным номером {row.Regnumber} «{row.Subject}»?\nДействие необратимо.");
             if (!ok) return;
+
 
             _exhibitRepo.Delete(row.Id);
 
@@ -5595,9 +6011,13 @@ namespace SQLWerk.ViewModels
 
         private void CloseErrorScreenIfOpen()
         {
-            if (!ShowErrorScreen) return;
+            if (!ShowErrorScreen && !IsBlinking) return;
+
+            _blinkAcknowledged = true;
+            UpdateBlinking();
+
             ShowErrorScreen = false;
-            ErrorScreenText = string.Empty; // освобождаем текст из памяти
+            ErrorScreenText = string.Empty;
         }
 
         private string BuildErrorScreenText()

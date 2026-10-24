@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
 using System;
@@ -19,10 +19,9 @@ namespace SQLWerk.Services
             IGrntiRepository grntiRepo)
         {
             var validCodvuz = vuzRepo.GetAll()
-                .Where(v => !string.IsNullOrWhiteSpace(v.Codvuz)
-                         && !string.IsNullOrWhiteSpace(v.Z1Full))
-                .Select(v => v.Codvuz!.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .Where(v => v.Codvuz > 0 && !string.IsNullOrWhiteSpace(v.Z1Full))
+                .Select(v => v.Codvuz)
+                .ToHashSet();
 
             var validRubrics = grntiRepo.GetAll()
                 .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
@@ -38,8 +37,8 @@ namespace SQLWerk.Services
             {
                 var issues = new List<string>();
 
-                var cod = e.Codvuz?.Trim() ?? "";
-                if (cod.Length == 0)
+                var cod = e.Codvuz;
+                if (cod <= 0)
                     issues.Add("пустой код ВУЗа");
                 else if (!validCodvuz.Contains(cod))
                     issues.Add($"ВУЗ с кодом '{cod}' не найден");

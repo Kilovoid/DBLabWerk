@@ -22,31 +22,53 @@
             <TextBox Text="{Binding Z2}"/>
 
             <TextBlock Text="Федеральный округ *"/>
-            <ComboBox ItemsSource="{x:Static vm:VuzEditViewModel.RegionOptions}"
-                      SelectedItem="{Binding Region}"
-                      HorizontalAlignment="Stretch"/>
+            <AutoCompleteBox ItemsSource="{x:Static vm:VuzEditViewModel.RegionOptions}"
+                             Text="{Binding Region, Mode=TwoWay}"
+                             FilterMode="Contains" MinimumPrefixLength="1"
+                             IsTextCompletionEnabled="False"
+                             HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Город *"/>
-            <TextBox Text="{Binding City}"/>
+            <AutoCompleteBox ItemsSource="{x:Static vm:VuzEditViewModel.CityOptions}"
+                             Text="{Binding City, Mode=TwoWay}"
+                             FilterMode="Contains" MinimumPrefixLength="1"
+                             IsTextCompletionEnabled="False"
+                             HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Тип учреждения *"/>
-            <ComboBox ItemsSource="{x:Static vm:VuzEditViewModel.StatusOptions}"
-                      SelectedItem="{Binding Status}"
-                      HorizontalAlignment="Stretch"/>
+            <AutoCompleteBox ItemsSource="{x:Static vm:VuzEditViewModel.StatusOptions}"
+                             Text="{Binding Status, Mode=TwoWay}"
+                             FilterMode="Contains" MinimumPrefixLength="1"
+                             IsTextCompletionEnabled="False"
+                             HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Код региона *"/>
-            <ComboBox ItemsSource="{x:Static vm:VuzEditViewModel.OblOptions}"
-                      SelectedItem="{Binding Obl}"
-                      HorizontalAlignment="Stretch"/>
+            <AutoCompleteBox ItemsSource="{x:Static vm:VuzEditViewModel.OblOptions}"
+                             Text="{Binding Obl, Mode=TwoWay}"
+                             FilterMode="Contains" MinimumPrefixLength="1"
+                             IsTextCompletionEnabled="False"
+                             HorizontalAlignment="Stretch"/>
 
-            <TextBlock Text="Регион (заполняется автоматически)"/>
-            <TextBox Text="{Binding OblName}" IsReadOnly="True"/>
+            <TextBlock Text="Регион / область *"/>
+            <AutoCompleteBox ItemsSource="{x:Static vm:VuzEditViewModel.OblNameOptions}"
+                             Text="{Binding OblName, Mode=TwoWay}"
+                             FilterMode="Contains" MinimumPrefixLength="1"
+                             IsTextCompletionEnabled="False"
+                             HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Статус"/>
-            <TextBox Text="{Binding GrVed}"/>
+            <AutoCompleteBox ItemsSource="{x:Static vm:VuzEditViewModel.GrVedOptions}"
+                             Text="{Binding GrVed, Mode=TwoWay}"
+                             FilterMode="Contains" MinimumPrefixLength="1"
+                             IsTextCompletionEnabled="False"
+                             HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Специализация"/>
-            <TextBox Text="{Binding Prof}"/>
+            <AutoCompleteBox ItemsSource="{x:Static vm:VuzEditViewModel.ProfOptions}"
+                             Text="{Binding Prof, Mode=TwoWay}"
+                             FilterMode="Contains" MinimumPrefixLength="1"
+                             IsTextCompletionEnabled="False"
+                             HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="{Binding Error}" Foreground="Red" TextWrapping="Wrap"/>
 

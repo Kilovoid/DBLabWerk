@@ -1,4 +1,4 @@
-﻿using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Abstractions;
 using SQLWerk.Data.Extensions;
 using SQLWerk.Models;
 using System;
@@ -27,7 +27,7 @@ namespace SQLWerk.Data.Sqlite
             cmd.CommandText = """
                 CREATE TABLE IF NOT EXISTS Vuz (
                     Id INTEGER PRIMARY KEY,
-                    Codvuz TEXT, Z1 TEXT, Z1Full TEXT, Z2 TEXT, Region TEXT,
+                    Codvuz INTEGER, Z1 TEXT, Z1Full TEXT, Z2 TEXT, Region TEXT,
                     City TEXT, Status TEXT, Obl TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
                 );
                 """;
@@ -51,7 +51,7 @@ namespace SQLWerk.Data.Sqlite
                 list.Add(new VuzTableRow
                 {
                     Id = r.GetLong(0),
-                    Codvuz = r.GetStringOrNull(1),
+                    Codvuz = r.GetInt32(1),
                     Z1 = r.GetStringOrNull(2),
                     Z1Full = r.GetStringOrNull(3),
                     Z2 = r.GetStringOrNull(4),

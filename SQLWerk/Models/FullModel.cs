@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -8,7 +8,7 @@ namespace SQLWerk.Models
     {
         public long Id { get; set; }
 
-        public string? Codvuz { get; set; }
+        public int Codvuz { get; set; }
         public string? Z2 { get; set; }
         public string? Type { get; set; }
         public string? Regnumber { get; set; }

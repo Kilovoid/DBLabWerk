@@ -1,4 +1,4 @@
-﻿using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
 using System;
 using System.Collections.Generic;
@@ -23,8 +23,8 @@ namespace SQLWerk.Services
         private static (bool, string?) IsValidExhibit(ExhibitTableRow row)
         {
             var issues = new List<string>();
-            if (string.IsNullOrEmpty(row.Codvuz)) 
-                issues.Add("Пустое поле Кода Вуза");
+            if (row.Codvuz <= 0) 
+                issues.Add("Код ВУЗа должен быть целым числом от 1 до 2147483647");
             if (string.IsNullOrEmpty(row.Grnti)) 
                 issues.Add("Пустое поле ГРНТИ");
             else if (!GrntiService.IsAllValid(row.Grnti))
@@ -39,8 +39,8 @@ namespace SQLWerk.Services
         {
             var issues = new List<string>();
 
-            if (string.IsNullOrWhiteSpace(row.Codvuz)) 
-                issues.Add("Пустое поле codvuz");
+            if (row.Codvuz <= 0) 
+                issues.Add("Код ВУЗа должен быть целым числом от 1 до 2147483647");
             if (string.IsNullOrWhiteSpace(row.Obl) || !row.Obl.All(char.IsDigit))
                 issues.Add("Поле obl пустое или содержит не цифры");
 
