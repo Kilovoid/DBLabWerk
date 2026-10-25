@@ -1,4 +1,4 @@
-﻿using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Abstractions;
 using SQLWerk.Data.Extensions;
 using SQLWerk.Models;
 using System.Collections.Generic;
@@ -16,6 +16,7 @@ namespace SQLWerk.Data.Sqlite
         {
             using var conn = _factory.Create();
             conn.Open();
+            SQLWerk.Services.CodvuzMigration.Apply(conn);
 
             using (var drop = conn.CreateCommand())
             {
@@ -91,7 +92,7 @@ namespace SQLWerk.Data.Sqlite
                     list.Add(new FullModel
                     {
                         Id = r.GetInt64(0),
-                        Codvuz = r.GetStringOrNull(1),
+                        Codvuz = r.GetInt32(1),
                         Z2 = r.GetStringOrNull(2),
                         Type = r.GetStringOrNull(3),
                         Regnumber = r.GetStringOrNull(4),

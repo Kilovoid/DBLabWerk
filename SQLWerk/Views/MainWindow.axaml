@@ -1,6 +1,7 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SQLWerk.ViewModels"
+        xmlns:views="using:SQLWerk.Views"
         x:Class="SQLWerk.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1080" Height="600"
@@ -180,49 +181,22 @@
 						<StackPanel Orientation="Vertical" Spacing="6">
 							<TextBlock Text="Фильтры" FontWeight="SemiBold"/>
 
-							<Grid ColumnDefinitions="*,8,*,8,*,8,*,8,*,8,*">
-								<StackPanel Grid.Column="0">
-									<TextBlock Text="Федеральный округ" FontSize="11"/>
-									<ComboBox ItemsSource="{Binding FilterRegionOptions}"
-                                              SelectedItem="{Binding FilterRegion}"
-                                              HorizontalAlignment="Stretch"/>
-								</StackPanel>
-
-								<StackPanel Grid.Column="2">
-									<TextBlock Text="Субъект федерации" FontSize="11"/>
-									<ComboBox ItemsSource="{Binding FilterOblOptions}"
-                                              SelectedItem="{Binding FilterObl}"
-                                              HorizontalAlignment="Stretch"/>
-								</StackPanel>
-
-								<StackPanel Grid.Column="4">
-									<TextBlock Text="Город" FontSize="11"/>
-									<ComboBox ItemsSource="{Binding FilterCityOptions}"
-                                              SelectedItem="{Binding FilterCity}"
-                                              HorizontalAlignment="Stretch"/>
-								</StackPanel>
-
-								<StackPanel Grid.Column="6">
-									<TextBlock Text="Рубрика ГРНТИ" FontSize="11"/>
-									<ComboBox ItemsSource="{Binding FilterGrntiOptions}"
-                                              SelectedItem="{Binding FilterGrnti}"
-                                              HorizontalAlignment="Stretch"/>
-								</StackPanel>
-
-								<StackPanel Grid.Column="8">
-									<TextBlock Text="Степень готовности экспоната" FontSize="11"/>
-									<ComboBox ItemsSource="{Binding FilterExhitypeOptions}"
-                                              SelectedItem="{Binding FilterExhitype}"
-                                              HorizontalAlignment="Stretch"/>
-								</StackPanel>
-
-								<StackPanel Grid.Column="10">
-									<TextBlock Text="Признак формы" FontSize="11"/>
-									<ComboBox ItemsSource="{Binding FilterTypeOptions}"
-                                              SelectedItem="{Binding FilterType}"
-                                              HorizontalAlignment="Stretch"/>
-								</StackPanel>
-							</Grid>
+                            <ScrollViewer MaxHeight="290" HorizontalScrollBarVisibility="Disabled">
+                                <WrapPanel Orientation="Horizontal">
+                                <views:MultiSelectFilterView DataContext="{Binding RegionFilter}"
+                                                             Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding OblFilter}"
+                                                             Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding CityFilter}"
+                                                             Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding GrntiFilter}"
+                                                             Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding ExhitypeFilter}"
+                                                             Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding TypeFilter}"
+                                                             Width="245" Margin="0,0,8,6"/>
+                                </WrapPanel>
+                            </ScrollViewer>
 
 							<Button Content="Сбросить фильтры"
                                     Command="{Binding ResetFiltersCommand}"

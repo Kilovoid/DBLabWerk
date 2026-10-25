@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Data.Sqlite;
 using System;
@@ -49,14 +49,14 @@ namespace SQLWerk.Services
 
                 CREATE TABLE Exhibits (
                     Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codvuz    TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT,
+                    Codvuz    INTEGER, Z2 TEXT, Type TEXT, Regnumber TEXT,
                     Subject   TEXT, Grnti TEXT, Bossname TEXT, Bosstitle TEXT,
                     Exhitype  TEXT, Vystavki TEXT, Exponat TEXT
                 );
 
                 CREATE TABLE Vuz (
                     Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codvuz    TEXT, Z2 TEXT, Z1 TEXT, Z1Full TEXT,
+                    Codvuz    INTEGER, Z2 TEXT, Z1 TEXT, Z1Full TEXT,
                     Region    TEXT, City TEXT, Status TEXT,
                     Obl       TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
                 );

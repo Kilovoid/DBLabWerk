@@ -1,4 +1,4 @@
-﻿using ExcelDataReader;
+using ExcelDataReader;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Services;
 using System;
@@ -17,7 +17,7 @@ namespace SQLWerk.Models
         };
 
         public long Id { get; set; }
-        public string? Codvuz { get; set; }
+        public int Codvuz { get; set; }
         public string? Z2 { get; set; }
         public string? Type { get; set; }
         public string? Regnumber { get; set; }
@@ -31,7 +31,7 @@ namespace SQLWerk.Models
 
         public void FillTable(IExcelDataReader r)
         {
-            Codvuz = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Codvuz = int.TryParse(ExcelReader.Get(r, 0)?.Trim(), out var code) ? code : 0;
             Z2 = ExcelReader.Get(r, 1)?.Trim() ?? "";
             Type = ExcelReader.Get(r, 2)?.Trim() ?? "";
             Regnumber = ExcelReader.Get(r, 3)?.Trim() ?? "";

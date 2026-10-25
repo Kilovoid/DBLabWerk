@@ -9,9 +9,12 @@
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="6">
             <TextBlock Text="Код ВУЗа *"/>
-            <ComboBox ItemsSource="{x:Static vm:ExhibitEditViewModel.VuzCodes}"
-                      SelectedItem="{Binding Codvuz}"
-                      HorizontalAlignment="Stretch"/>
+            <AutoCompleteBox
+                                      ItemsSource="{x:Static vm:ExhibitEditViewModel.VuzCodes}"
+                                      Text="{Binding Codvuz, Mode=TwoWay}"
+                                      FilterMode="Contains" MinimumPrefixLength="1"
+                                      IsTextCompletionEnabled="False"
+                                      HorizontalAlignment="Stretch"/>
 
             <TextBlock Text="Признак формы *"/>
             <ComboBox ItemsSource="{x:Static vm:ExhibitEditViewModel.TypeOptions}"
@@ -29,11 +32,12 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="vm:GrntiEntryVM">
                         <Grid ColumnDefinitions="*,8,*" Margin="0,0,0,4">
-                            <ComboBox Grid.Column="0"
+                            <AutoCompleteBox Grid.Column="0"
                                       ItemsSource="{x:Static vm:ExhibitEditViewModel.GrntiRubrics}"
-                                      SelectedItem="{Binding Rubric}"
-                                      HorizontalAlignment="Stretch"
-                                      PlaceholderText="Рубрика"/>
+                                      Text="{Binding Rubric, Mode=TwoWay}"
+                                      FilterMode="Contains" MinimumPrefixLength="1"
+                                      IsTextCompletionEnabled="False"
+                                      HorizontalAlignment="Stretch"/>
                             <MaskedTextBox Grid.Column="2"
                                 Mask="00\.99"
                                 Text="{Binding Sub, Mode=TwoWay}"

@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SQLWerk.Models;
 using SQLWerk.Services;
@@ -11,11 +11,15 @@ namespace SQLWerk.ViewModels;
 public partial class VuzEditViewModel : ObservableObject
 {
     public static List<string> RegionOptions { get; set; } = new();
+    public static List<string> CityOptions { get; set; } = new();
+    public static List<string> OblNameOptions { get; set; } = new();
+    public static List<string> GrVedOptions { get; set; } = new();
+    public static List<string> ProfOptions { get; set; } = new();
     public static List<string> StatusOptions { get; set; } = new();
     public static List<string> OblOptions { get; set; } = new();
     public static Dictionary<string, string> OblToName { get; set; } = new();
 
-    public static HashSet<string> ExistingCodvuz { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public static HashSet<int> ExistingCodvuz { get; set; } = new();
     public static HashSet<string> ExistingZ1 { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public static HashSet<string> ExistingZ1Full { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -40,7 +44,7 @@ public partial class VuzEditViewModel : ObservableObject
     public VuzTableRow? Result { get; private set; }
     public event EventHandler? CloseRequested;
 
-    private string _oldCodvuz = "";
+    private int _oldCodvuz;
     private string _oldZ1 = "";
     private string _oldZ1Full = "";
 
@@ -79,7 +83,16 @@ public partial class VuzEditViewModel : ObservableObject
     partial void OnOblNameChanged(string value)
     {
         var filtered = RemoveDigits(value);
-        if (filtered != value) OblName = filtered;
+        if (filtered != value)
+        {
+            OblName = filtered;
+            return;
+        }
+
+        var match = OblToName.FirstOrDefault(pair =>
+            string.Equals(pair.Value, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (match.Key != null && Obl != match.Key)
+            Obl = match.Key;
     }
 
     partial void OnStatusChanged(string value)
@@ -93,25 +106,16 @@ public partial class VuzEditViewModel : ObservableObject
         if (string.IsNullOrEmpty(value)) return value ?? "";
         return new string(value.Where(c => !char.IsDigit(c)).ToArray());
     }
-    partial void OnCodvuzChanged(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return;
-
-        var digitsOnly = new string(value.Where(char.IsDigit).ToArray());
-        if (digitsOnly != value)
-            Codvuz = digitsOnly;
-    }
-
     public VuzEditViewModel(VuzTableRow row)
     {
         IsEditMode = true;
         _title = "Изменение ВУЗа";
         Id = row.Id;
-        _oldCodvuz = row.Codvuz ?? "";
+        _oldCodvuz = row.Codvuz;
         _oldZ1 = row.Z1 ?? "";
         _oldZ1Full = row.Z1Full ?? "";
 
-        _codvuz = row.Codvuz ?? "";
+        _codvuz = row.Codvuz.ToString();
         _z1 = row.Z1 ?? "";
         _z1Full = row.Z1Full ?? "";
         _z2 = row.Z2 ?? "";
@@ -124,14 +128,13 @@ public partial class VuzEditViewModel : ObservableObject
         _prof = row.Prof ?? "";
     }
 
-    partial void OnOblChanged(string value)
+    partial void OnOblChanged(string oldValue, string newValue)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
+        if (OblToName.TryGetValue((newValue ?? "").Trim(), out var name))
+            OblName = name;
+        else if (OblToName.TryGetValue((oldValue ?? "").Trim(), out var oldName)
+                 && string.Equals(OblName, oldName, StringComparison.OrdinalIgnoreCase))
             OblName = "";
-            return;
-        }
-        OblName = OblToName.TryGetValue(value.Trim(), out var name) ? name : "";
     }
 
     [RelayCommand]
@@ -139,22 +142,21 @@ public partial class VuzEditViewModel : ObservableObject
     {
         var issues = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(Codvuz)) issues.Add("Не заполнен код ВУЗа");
+        if (!int.TryParse(Codvuz?.Trim(), out var code) || code <= 0)
+            issues.Add("Код ВУЗа должен быть целым числом от 1 до 2147483647");
         if (string.IsNullOrWhiteSpace(Z1)) issues.Add("Не заполнено наименование");
         if (string.IsNullOrWhiteSpace(Z1Full)) issues.Add("Не заполнено полное наименование");
         if (string.IsNullOrWhiteSpace(Z2)) issues.Add("Не заполнено краткое наименование");
         if (string.IsNullOrWhiteSpace(Region)) issues.Add("Не выбран федеральный округ");
         if (string.IsNullOrWhiteSpace(City)) issues.Add("Не заполнен город");
         if (string.IsNullOrWhiteSpace(Status)) issues.Add("Не выбран тип учреждения");
-        if (string.IsNullOrWhiteSpace(Obl)) issues.Add("Не выбран код региона");
-        else if (!OblToName.ContainsKey((Obl ?? "").Trim()))
-            issues.Add($"Регион для кода '{Obl}' не найден");
+        if (string.IsNullOrWhiteSpace(Obl) || !Obl.All(char.IsDigit))
+            issues.Add("Код региона должен содержать только цифры");
+        if (string.IsNullOrWhiteSpace(OblName))
+            issues.Add("Не заполнено название региона");
 
-        var c = (Codvuz ?? "").Trim();
-        if (c.Length > 0
-            && ExistingCodvuz.Contains(c)
-            && !string.Equals(c, _oldCodvuz, StringComparison.OrdinalIgnoreCase))
-            issues.Add($"Код ВУЗа '{c}' уже существует");
+        if (code > 0 && ExistingCodvuz.Contains(code) && code != _oldCodvuz)
+            issues.Add($"Код ВУЗа '{code}' уже существует");
 
         var z1 = (Z1 ?? "").Trim();
         if (z1.Length > 0
@@ -177,7 +179,7 @@ public partial class VuzEditViewModel : ObservableObject
         var row = new VuzTableRow
         {
             Id = Id,
-            Codvuz = c,
+            Codvuz = code,
             Z1 = z1,
             Z1Full = z1f,
             Z2 = (Z2 ?? "").Trim(),

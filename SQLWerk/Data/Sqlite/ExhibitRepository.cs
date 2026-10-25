@@ -1,4 +1,4 @@
-﻿using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Abstractions;
 using SQLWerk.Data.Extensions;
 using SQLWerk.Models;
 using System;
@@ -27,7 +27,7 @@ namespace SQLWerk.Data.Sqlite
             cmd.CommandText = """
                 CREATE TABLE IF NOT EXISTS Exhibits (
                     Id INTEGER PRIMARY KEY,
-                    Codvuz TEXT, Z2 TEXT, Type TEXT, Regnumber TEXT, Subject TEXT,
+                    Codvuz INTEGER, Z2 TEXT, Type TEXT, Regnumber TEXT, Subject TEXT,
                     Grnti TEXT, Bossname TEXT, Bosstitle TEXT, Exhitype TEXT, Vystavki TEXT, Exponat TEXT
                 );
                 """;
@@ -51,7 +51,7 @@ namespace SQLWerk.Data.Sqlite
                 list.Add(new ExhibitTableRow
                 {
                     Id = r.GetLong(0),
-                    Codvuz = r.GetStringOrNull(1),
+                    Codvuz = r.GetInt32(1),
                     Z2 = r.GetStringOrNull(2),
                     Type = r.GetStringOrNull(3),
                     Regnumber = r.GetStringOrNull(4),
@@ -151,7 +151,7 @@ namespace SQLWerk.Data.Sqlite
             cmd.ExecuteNonQuery();
         }
 
-        public void DeleteByCodvuz(string codvuz)
+        public void DeleteByCodvuz(int codvuz)
         {
             using var conn = _factory.Create();
             conn.Open();

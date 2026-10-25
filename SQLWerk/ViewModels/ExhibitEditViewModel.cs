@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SQLWerk.Models;
 using SQLWerk.Services;
@@ -60,7 +60,7 @@ public partial class ExhibitEditViewModel : ObservableObject
         _title = "Изменение выставки";
         Id = row.Id;
         Z2 = row.Z2 ?? "";
-        _codvuz = row.Codvuz ?? "";
+        _codvuz = row.Codvuz.ToString();
         _type = row.Type ?? "";
         _regnumber = row.Regnumber ?? "";
         _subject = row.Subject ?? "";
@@ -95,7 +95,9 @@ public partial class ExhibitEditViewModel : ObservableObject
         var cod = (Codvuz ?? "").Trim();
         if (cod.Length == 0)
             issues.Add("Не выбран код ВУЗа");
-        else if (!VuzCodes.Contains(cod))
+        else if (!int.TryParse(cod, out var parsedCode) || parsedCode <= 0)
+            issues.Add("Код ВУЗа должен быть целым числом от 1 до 2147483647");
+        else if (!VuzCodes.Contains(parsedCode.ToString()))
             issues.Add($"Код ВУЗа '{cod}' не найден");
 
         var type = (Type ?? "").Trim();
@@ -169,7 +171,7 @@ public partial class ExhibitEditViewModel : ObservableObject
         var row = new ExhibitTableRow
         {
             Id = Id,
-            Codvuz = cod,
+            Codvuz = int.Parse(cod),
             Z2 = Z2,
             Type = type,
             Regnumber = Regnumber.Trim(),

@@ -1,4 +1,4 @@
-﻿using ExcelDataReader;
+using ExcelDataReader;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Services;
 using System;
@@ -17,7 +17,7 @@ namespace SQLWerk.Models
             "prof"
         };
         public long Id { get; set; }
-        public string? Codvuz { get; set; }
+        public int Codvuz { get; set; }
         public string? Z1 { get; set; }
         public string? Z1Full { get; set; }
         public string? Z2 { get; set; }
@@ -31,7 +31,7 @@ namespace SQLWerk.Models
 
         public void FillTable(IExcelDataReader r)
         {
-            Codvuz = ExcelReader.Get(r, 0)?.Trim() ?? "";
+            Codvuz = int.TryParse(ExcelReader.Get(r, 0)?.Trim(), out var code) ? code : 0;
             Z1 = ExcelReader.Get(r, 1)?.Trim() ?? "";
             Z1Full = ExcelReader.Get(r, 2)?.Trim() ?? "";
             Z2 = ExcelReader.Get(r, 3)?.Trim() ?? "";
@@ -44,6 +44,6 @@ namespace SQLWerk.Models
             Prof = ExcelReader.Get(r, 10)?.Trim() ?? "";
         }
 
-        public string? DedupKey => string.IsNullOrWhiteSpace(Codvuz) ? null : Codvuz.Trim();
+        public string? DedupKey => Codvuz > 0 ? Codvuz.ToString() : null;
     }
 }
