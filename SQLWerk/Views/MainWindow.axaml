@@ -28,6 +28,33 @@
             <MenuItem Header="Группы НИР" Command="{Binding ShowNirGroupCommand}"/>
 		</Menu>
 
+		<StackPanel DockPanel.Dock="Top"
+            Margin="12,8"
+            IsVisible="{Binding !ShowErrorScreen}">
+
+		<StackPanel.Styles>
+			<Style Selector="TextBlock">
+				<Setter Property="FontSize" Value="20"/>
+				<Setter Property="FontWeight" Value="SemiBold"/>
+			</Style>
+		</StackPanel.Styles>
+
+		<TextBlock Text="Выставки"
+               IsVisible="{Binding ShowExhibits}"/>
+
+		<TextBlock Text="ВУЗы"
+               IsVisible="{Binding ShowVuz}"/>
+
+		<TextBlock Text="ГРНТИ"
+               IsVisible="{Binding ShowGrnti}"/>
+
+		<TextBlock Text="Вся информация"
+               IsVisible="{Binding ShowAll}"/>
+
+		<TextBlock Text="Группы НИР"
+               IsVisible="{Binding ShowNirGroups}"/>
+		</StackPanel>
+
 
 
 		<Border DockPanel.Dock="Bottom" IsVisible="{Binding !ShowNirGroups}"
@@ -170,7 +197,7 @@
 
 				<Grid IsVisible="{Binding ShowAll}" RowDefinitions="Auto,*">
 
-					                    <Border Grid.Row="0" Background="#F0F0F0" BorderBrush="#CCCCCC"
+					<Border Grid.Row="0" Background="#F0F0F0" BorderBrush="#CCCCCC"
                             BorderThickness="1" CornerRadius="4" Padding="8" Margin="8">
                         <StackPanel Spacing="6">
                             <TextBlock Text="Фильтры" FontWeight="SemiBold"/>
