@@ -4,7 +4,7 @@
         Title="Новая группа НИР" Width="440" Height="240"
         CanResize="False" WindowStartupLocation="CenterOwner">
     <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
-        <TextBlock Grid.Row="0" Text="Название группы (оно же её строковый код):"
+        <TextBlock Grid.Row="0" Text="Название группы:"
                    TextWrapping="Wrap" Margin="0,0,0,8"/>
         <TextBox x:Name="GroupNameInput" Grid.Row="1"/>
         <TextBlock x:Name="ValidationMessage" Grid.Row="2" Foreground="Firebrick"

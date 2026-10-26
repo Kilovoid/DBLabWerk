@@ -163,8 +163,7 @@ namespace SQLWerk.ViewModels
                 int count = _nirGroupRepo.GetExhibitIds(group.Code).Count;
                 bool confirmed = await ConfirmHandler("Удаление группы НИР",
                     $"Удалить группу «{group.Code}»?\n\n" +
-                    $"Связей с выставками в группе: {count}.\n" +
-                    "Будут удалены группа и её связи.");
+                    $"Выставок в группе: {count}.");
                 if (!confirmed) return;
 
                 bool deleted = _nirGroupRepo.DeleteGroup(group.Code);
@@ -232,8 +231,7 @@ namespace SQLWerk.ViewModels
                 var codes = selected.Distinct(StringComparer.Ordinal).ToArray();
                 int added = _nirGroupRepo.AddMembers(codes, ids);
                 ReloadNirGroups();
-                Status = NirGroupMessage = $"Выставок: {ids.Length}, групп: {codes.Length}. " +
-                    $"Добавлено связей: {added}; уже существовали: {(long)ids.Length * codes.Length - added}.";
+                Status = NirGroupMessage = $"";
             }
             catch (Exception ex) { Status = NirGroupMessage = "Ошибка добавления: " + ex.Message; }
         }
