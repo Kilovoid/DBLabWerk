@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SQLWerk.ViewModels"
         xmlns:views="using:SQLWerk.Views"
+        xmlns:models="using:SQLWerk.Models"
         x:Class="SQLWerk.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Width="1080" Height="600"
@@ -24,9 +25,12 @@
 				<MenuItem Header="Выбрать файлы Excel"
                           Command="{Binding LoadCommand}" />
 			</MenuItem>
+            <MenuItem Header="Группы НИР" Command="{Binding ShowNirGroupCommand}"/>
 		</Menu>
 
-		<Border DockPanel.Dock="Bottom"
+
+
+		<Border DockPanel.Dock="Bottom" IsVisible="{Binding !ShowNirGroups}"
                 Background="#EFEFEF"
                 Padding="8,4"
                 BorderBrush="#CCCCCC"
@@ -58,26 +62,26 @@
                                 Spacing="8" Margin="8,8,8,8">
 						<Button Content="Добавить"  Command="{Binding AddExhibitCommand}"/>
 						<Button Content="Изменить"
-                                Command="{Binding EditExhibitCommand}"
-                                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+                                Command="{Binding EditExhibitCommand}"/>
 						<Button Content="Удалить"
-                                Command="{Binding DeleteExhibitCommand}"
-                                CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+                                Command="{Binding DeleteExhibitCommand}"/>
 					</StackPanel>
 
-					<DataGrid x:Name="ExhibitsGrid" Grid.Row="1"
+					<DataGrid x:Name="ExhibitsGrid" SelectionMode="Extended"
+                              SelectionChanged="OnGridSelectionChanged" Grid.Row="1"
                               ItemsSource="{Binding Exhibits}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
 						<DataGrid.ContextMenu>
 							<ContextMenu>
 								<MenuItem Header="Изменить"
-										  Command="{Binding EditExhibitCommand}"
-										  CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
+										  Command="{Binding EditExhibitCommand}"/>
 								<MenuItem Header="Удалить"
-										  Command="{Binding DeleteExhibitCommand}"
-										  CommandParameter="{Binding #ExhibitsGrid.SelectedItem}"/>
-							</ContextMenu>
+										  Command="{Binding DeleteExhibitCommand}"/>
+							    <Separator/>
+                                <MenuItem Header="Добавить в группу НИР..."
+                                          Command="{Binding AddSelectedExhibitsToNirGroupCommand}"/>
+                            </ContextMenu>
 						</DataGrid.ContextMenu>
 						<DataGrid.Columns>
 							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Codvuz}" />
@@ -99,25 +103,22 @@
                                 Spacing="8" Margin="8,8,8,8">
 						<Button Content="Добавить"  Command="{Binding AddVuzCommand}"/>
 						<Button Content="Изменить"
-                                Command="{Binding EditVuzCommand}"
-                                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+                                Command="{Binding EditVuzCommand}"/>
 						<Button Content="Удалить"
-                                Command="{Binding DeleteVuzCommand}"
-                                CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+                                Command="{Binding DeleteVuzCommand}"/>
 					</StackPanel>
 
-					<DataGrid x:Name="VuzGrid" Grid.Row="1"
+					<DataGrid x:Name="VuzGrid" SelectionMode="Extended"
+                              SelectionChanged="OnGridSelectionChanged" Grid.Row="1"
                               ItemsSource="{Binding Vuzes}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
 						<DataGrid.ContextMenu>
 							<ContextMenu>
 								<MenuItem Header="Изменить"
-										  Command="{Binding EditExhibitCommand}"
-										  CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+										  Command="{Binding EditVuzCommand}"/>
 								<MenuItem Header="Удалить"
-										  Command="{Binding DeleteExhibitCommand}"
-										  CommandParameter="{Binding #VuzGrid.SelectedItem}"/>
+										  Command="{Binding DeleteVuzCommand}"/>
 							</ContextMenu>
 						</DataGrid.ContextMenu>
 						<DataGrid.Columns>
@@ -141,14 +142,13 @@
                                 Spacing="8" Margin="8,8,8,8">
 						<Button Content="Добавить"  Command="{Binding AddGrntiCommand}"/>
 						<Button Content="Изменить"
-                                Command="{Binding EditGrntiCommand}"
-                                CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+                                Command="{Binding EditGrntiCommand}"/>
 						<Button Content="Удалить"
-                                Command="{Binding DeleteGrntiCommand}"
-                                CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+                                Command="{Binding DeleteGrntiCommand}"/>
 					</StackPanel>
 
-					<DataGrid x:Name="GrntiGrid"
+					<DataGrid x:Name="GrntiGrid" SelectionMode="Extended"
+                              SelectionChanged="OnGridSelectionChanged"
                               Grid.Row="1"
                               ItemsSource="{Binding Grnti}"
                               AutoGenerateColumns="False"
@@ -156,11 +156,9 @@
 						<DataGrid.ContextMenu>
 							<ContextMenu>
 								<MenuItem Header="Изменить"
-										  Command="{Binding EditExhibitCommand}"
-										  CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+										  Command="{Binding EditGrntiCommand}"/>
 								<MenuItem Header="Удалить"
-										  Command="{Binding DeleteExhibitCommand}"
-										  CommandParameter="{Binding #GrntiGrid.SelectedItem}"/>
+										  Command="{Binding DeleteGrntiCommand}"/>
 							</ContextMenu>
 						</DataGrid.ContextMenu>
 						<DataGrid.Columns>
@@ -171,44 +169,38 @@
 				</Grid>
 
 				<Grid IsVisible="{Binding ShowAll}" RowDefinitions="Auto,*">
-					<Border Grid.Row="0"
-                            Background="#F0F0F0"
-                            BorderBrush="#CCCCCC"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="8"
-                            Margin="8,8,8,8">
-						<StackPanel Orientation="Vertical" Spacing="6">
-							<TextBlock Text="Фильтры" FontWeight="SemiBold"/>
 
-                            <ScrollViewer MaxHeight="290" HorizontalScrollBarVisibility="Disabled">
-                                <WrapPanel Orientation="Horizontal">
-                                <views:MultiSelectFilterView DataContext="{Binding RegionFilter}"
-                                                             Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding OblFilter}"
-                                                             Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding CityFilter}"
-                                                             Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding GrntiFilter}"
-                                                             Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding ExhitypeFilter}"
-                                                             Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding TypeFilter}"
-                                                             Width="245" Margin="0,0,8,6"/>
-                                </WrapPanel>
-                            </ScrollViewer>
-
-							<Button Content="Сбросить фильтры"
-                                    Command="{Binding ResetFiltersCommand}"
+					                    <Border Grid.Row="0" Background="#F0F0F0" BorderBrush="#CCCCCC"
+                            BorderThickness="1" CornerRadius="4" Padding="8" Margin="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Фильтры" FontWeight="SemiBold"/>
+                            <WrapPanel Orientation="Horizontal">
+                                <views:MultiSelectFilterView DataContext="{Binding RegionFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding OblFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding CityFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding GrntiFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding ExhitypeFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding TypeFilter}" Width="245" Margin="0,0,8,6"/>
+                            </WrapPanel>
+                            <Button Content="Сбросить фильтры" Command="{Binding ResetFiltersCommand}"
                                     HorizontalAlignment="Right"/>
-						</StackPanel>
-					</Border>
+                        </StackPanel>
+                    </Border>
 
-					<DataGrid Grid.Row="1"
+                    <DataGrid x:Name="FullGrid" Grid.Row="1"
+                              SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"
                               ItemsSource="{Binding FilteredFull}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
-						<DataGrid.Columns>
+						<DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Изменить" Command="{Binding EditFullExhibitCommand}"/>
+                                <MenuItem Header="Удалить" Command="{Binding DeleteFullExhibitsCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="Добавить в группу НИР..." Command="{Binding AddToNirGroupCommand}"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
 							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Regnumber}" />
 							<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Type}" />
 							<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Subject}" />
@@ -233,7 +225,64 @@
 						</DataGrid.Columns>
 					</DataGrid>
 				</Grid>
-			</Grid>
+			
+                <Grid IsVisible="{Binding ShowNirGroups}" RowDefinitions="Auto,*" Margin="8">
+                    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,8">
+                        <WrapPanel Orientation="Horizontal">
+                            <TextBlock Text="Группа:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                            <ComboBox ItemsSource="{Binding NirGroups}"
+                                      SelectedItem="{Binding SelectedNirGroup, Mode=TwoWay}"
+                                      Width="240" Margin="0,0,12,8">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:NirGroup">
+                                        <TextBlock Text="{Binding Code}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBox Text="{Binding NewNirGroupName, Mode=TwoWay}"
+                                     PlaceholderText="Название новой группы"
+                                     Width="270" Margin="0,0,8,8"/>
+                            <Button Content="Создать группу" Command="{Binding CreateNirGroupCommand}" Margin="0,0,0,8"/>
+                            <Button Content="Удалить группу" Command="{Binding DeleteNirGroupCommand}" Margin="8,0,0,8"/>
+                        </WrapPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="{Binding NirGroupRows.Count, StringFormat='Выставок в группе: {0}'}"
+                                       VerticalAlignment="Center"/>
+                            <Button Content="Убрать выбранные из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
+                        </StackPanel>
+                        <TextBlock Text="Выберите существующую группу или создайте новую. Выставки добавляются через контекстное меню VIEW или таблицы «Выставки»."
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <DataGrid x:Name="NirGroupsGrid" Grid.Row="1" ItemsSource="{Binding NirGroupRows}"
+                              SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"
+                              AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid.Columns>
+							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Exhibit.Regnumber}" />
+							<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Exhibit.Type}" />
+							<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Exhibit.Subject}" />
+							<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Exhibit.Grnti}" />
+							<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Exhibit.Rubrika}" />
+							<DataGridTextColumn Header="Руководитель" Binding="{Binding Exhibit.Bossname}" />
+							<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Exhibit.Bosstitle}" />
+							<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhibit.Exhitype}" />
+							<DataGridTextColumn Header="Выставки" Binding="{Binding Exhibit.Vystavki}" />
+							<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exhibit.Exponat}" />
+							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Exhibit.Codvuz}" />
+							<DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Exhibit.Z2}" />
+							<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Exhibit.Z1}" />
+							<DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Exhibit.Z1Full}" />
+							<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Exhibit.Status}" />
+							<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Exhibit.Region}" />
+							<DataGridTextColumn Header="Город" Binding="{Binding Exhibit.City}" />
+							<DataGridTextColumn Header="Код региона" Binding="{Binding Exhibit.Obl}" />
+							<DataGridTextColumn Header="Регион" Binding="{Binding Exhibit.OblName}" />
+							<DataGridTextColumn Header="Статус" Binding="{Binding Exhibit.GrVed}" />
+							<DataGridTextColumn Header="Специализация" Binding="{Binding Exhibit.Prof}" />
+						</DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+</Grid>
 
 			<Grid IsVisible="{Binding ShowErrorScreen}" Margin="16">
 				<DockPanel>

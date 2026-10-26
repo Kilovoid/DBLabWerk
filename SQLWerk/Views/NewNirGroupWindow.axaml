@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SQLWerk.Views.NewNirGroupWindow"
+        Title="Новая группа НИР" Width="440" Height="240"
+        CanResize="False" WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Text="Название группы (оно же её строковый код):"
+                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <TextBox x:Name="GroupNameInput" Grid.Row="1"/>
+        <TextBlock x:Name="ValidationMessage" Grid.Row="2" Foreground="Firebrick"
+                   TextWrapping="Wrap" Margin="0,8,0,8"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right">
+            <Button Content="ОК" IsDefault="True" Click="OnOkClick"/>
+            <Button Content="Отмена" IsCancel="True" Click="OnCancelClick"/>
+        </StackPanel>
+    </Grid>
+</Window>

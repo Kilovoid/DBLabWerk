@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using SQLWerk.Data.Abstractions;
 using System;
 using System.Collections.Generic;
@@ -12,7 +12,11 @@ namespace SQLWerk.Data.Sqlite
         private readonly string _cs;
 
         public SqliteConnectionFactory(string dbPath) =>
-            _cs = $"Data Source={Path.GetFullPath(dbPath)}";
+            _cs = new SqliteConnectionStringBuilder
+            {
+                DataSource = Path.GetFullPath(dbPath),
+                ForeignKeys = true
+            }.ToString();
 
         public SqliteConnection Create() => new SqliteConnection(_cs);
     }

@@ -97,26 +97,12 @@ public partial class MultiSelectFilterViewModel : ObservableObject
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    // При поиске меняем только показанные варианты, скрытые галочки сохраняем.
+    // Команды действуют на весь фильтр, включая скрытые поиском значения.
     [RelayCommand]
-    private void SelectVisible() => SetSelected(VisibleValues, true);
+    private void SelectAll() => SetSelected(_values, true);
 
     [RelayCommand]
-    private void ClearVisible() => SetSelected(VisibleValues, false);
-
-    [RelayCommand]
-    private void SelectOnlyVisible()
-    {
-        var visible = VisibleValues.ToHashSet();
-        _updating = true;
-        try
-        {
-            foreach (var value in _values)
-                value.IsSelected = visible.Contains(value);
-        }
-        finally { _updating = false; }
-        NotifySelectionChanged();
-    }
+    private void ClearAll() => SetSelected(_values, false);
 
     private void SetSelected(IEnumerable<FilterValueViewModel> values, bool selected)
     {

@@ -43,6 +43,8 @@ namespace SQLWerk.Services
 
             cmd.CommandText = """
                 DROP VIEW  IF EXISTS AllDataView;
+                DROP TABLE IF EXISTS NirGroupMembers;
+                DROP TABLE IF EXISTS NirGroups;
                 DROP TABLE IF EXISTS Exhibits;
                 DROP TABLE IF EXISTS Vuz;
                 DROP TABLE IF EXISTS Grnti;

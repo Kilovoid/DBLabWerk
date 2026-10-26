@@ -3,41 +3,44 @@
              xmlns:vm="using:SQLWerk.ViewModels"
              x:Class="SQLWerk.Views.MultiSelectFilterView"
              x:DataType="vm:MultiSelectFilterViewModel">
-    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-        <Expander.Header>
-            <StackPanel Spacing="2">
-                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
-                           MaxWidth="160" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}"/>
-                <TextBlock Text="{Binding Summary}" FontSize="11"
-                           MaxWidth="160" TextTrimming="CharacterEllipsis"
-                           ToolTip.Tip="{Binding Summary}"/>
-            </StackPanel>
-        </Expander.Header>
-        <StackPanel Spacing="6" Margin="8">
-            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
-                     PlaceholderText="Поиск по подстроке..."/>
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Content="Отметить найденные" Command="{Binding SelectVisibleCommand}"
-                        FontSize="11" Padding="5"/>
-                <Button Content="Снять" Command="{Binding ClearVisibleCommand}"
-                        FontSize="11" Padding="5"
-                        ToolTip.Tip="Снять галочки только с найденных значений"/>
-            </StackPanel>
-            <Button Content="Оставить только найденные"
-                    Command="{Binding SelectOnlyVisibleCommand}" FontSize="11"/>
-            <ScrollViewer Height="150" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding VisibleValues}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:FilterValueViewModel">
-                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch">
-                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                            </CheckBox>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-            <Button Content="Сбросить этот фильтр" Command="{Binding ResetCommand}"/>
-        </StackPanel>
-    </Expander>
+    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+            Height="60" Padding="10,6">
+        <Button.Content>
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}"/>
+                    <TextBlock Text="{Binding Summary}" FontSize="11"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Summary}"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="▾" Margin="8,0,0,0"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Button.Content>
+        <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft" ShowMode="Standard"
+                    Opening="OnFilterOpening">
+                <StackPanel Spacing="6" Width="280">
+                    <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                             PlaceholderText="Поиск по подстроке..."/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="Отметить все" Command="{Binding SelectAllCommand}"/>
+                        <Button Content="Снять все" Command="{Binding ClearAllCommand}"/>
+                    </StackPanel>
+                    <ScrollViewer Height="180" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding VisibleValues}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FilterValueViewModel">
+                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch">
+                                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                                    </CheckBox>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
 </UserControl>
