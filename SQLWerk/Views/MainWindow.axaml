@@ -245,13 +245,11 @@
                             <Button Content="Создать группу" Command="{Binding CreateNirGroupCommand}" Margin="0,0,0,8"/>
                             <Button Content="Удалить группу" Command="{Binding DeleteNirGroupCommand}" Margin="8,0,0,8"/>
                         </WrapPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="{Binding NirGroupRows.Count, StringFormat='Выставок в группе: {0}'}"
+						<StackPanel Orientation="Horizontal" Spacing="12">
+							<TextBlock Text="{Binding NirGroupRows.Count, StringFormat='Выставок в группе: {0}'}"
                                        VerticalAlignment="Center"/>
-                            <Button Content="Убрать выбранные из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
-                        </StackPanel>
-                        <TextBlock Text="Выберите существующую группу или создайте новую. Выставки добавляются через контекстное меню VIEW или таблицы «Выставки»."
-                                   TextWrapping="Wrap"/>
+							<Button Content="Убрать выбранные из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
+						</StackPanel>
                         <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <DataGrid x:Name="NirGroupsGrid" Grid.Row="1" ItemsSource="{Binding NirGroupRows}"
