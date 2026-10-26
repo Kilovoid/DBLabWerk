@@ -36,6 +36,8 @@ namespace SQLWerk.ViewModels
         private readonly IExcelReader _reader;
         private readonly InMemoryLoggerProvider _logProvider;
         private readonly CrossValidationService _crossValidator;
+        private readonly IBatchDeleteService _batchDelete;
+        private readonly INirGroupRepository _nirGroupRepo;
 
         private int _sessionStartIndex;
         private int _sessionWarningCount;
@@ -56,6 +58,7 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private bool _showVuz;
         [ObservableProperty] private bool _showGrnti;
         [ObservableProperty] private bool _showAll;
+        [ObservableProperty] private bool _showNirGroups;
         [ObservableProperty] private bool _showErrorScreen;
         [ObservableProperty] private string _errorScreenText = "";
 
@@ -73,6 +76,237 @@ namespace SQLWerk.ViewModels
             new[] { RegionFilter, OblFilter, CityFilter, GrntiFilter, ExhitypeFilter, TypeFilter };
 
         [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
+
+
+
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(EditExhibitCommand))]
+        [NotifyCanExecuteChangedFor(nameof(DeleteExhibitCommand))]
+        [NotifyCanExecuteChangedFor(nameof(AddSelectedExhibitsToNirGroupCommand))]
+        private List<ExhibitTableRow> _selectedExhibits = new();
+
+        private bool CanEditExhibit() => SelectedExhibits.Count == 1;
+        private bool CanDeleteExhibit() => SelectedExhibits.Count > 0;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(EditVuzCommand))]
+        [NotifyCanExecuteChangedFor(nameof(DeleteVuzCommand))]
+        private List<VuzTableRow> _selectedVuzes = new();
+
+        private bool CanEditVuz() => SelectedVuzes.Count == 1;
+        private bool CanDeleteVuz() => SelectedVuzes.Count > 0;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(EditGrntiCommand))]
+        [NotifyCanExecuteChangedFor(nameof(DeleteGrntiCommand))]
+        private List<GrntiTableRow> _selectedGrntiRows = new();
+
+        private bool CanEditGrnti() => SelectedGrntiRows.Count == 1;
+        private bool CanDeleteGrnti() => SelectedGrntiRows.Count > 0;
+
+        [ObservableProperty] private ObservableCollection<NirGroup> _nirGroups = new();
+        [ObservableProperty] private ObservableCollection<NirGroupEntry> _nirGroupRows = new();
+        [ObservableProperty] private string _newNirGroupName = "";
+        [ObservableProperty] private string _nirGroupMessage = "";
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(DeleteNirGroupCommand))]
+        private NirGroup? _selectedNirGroup;
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(AddToNirGroupCommand))]
+        [NotifyCanExecuteChangedFor(nameof(EditFullExhibitCommand))]
+        [NotifyCanExecuteChangedFor(nameof(DeleteFullExhibitsCommand))]
+        private List<FullModel> _selectedFullRows = new();
+
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(RemoveFromNirGroupCommand))]
+        private List<NirGroupEntry> _selectedGroupRows = new();
+
+        public Func<Task<string[]?>>? SelectNirGroupsHandler { get; set; }
+        private bool CanAddToNirGroup() => SelectedFullRows.Count > 0;
+        private bool CanAddSelectedExhibitsToNirGroup() => SelectedExhibits.Count > 0;
+        private bool CanEditFullExhibit() => SelectedFullRows.Count == 1;
+        private bool CanDeleteFullExhibits() => SelectedFullRows.Count > 0;
+        private bool CanRemoveFromNirGroup() => SelectedGroupRows.Count > 0;
+
+        partial void OnSelectedNirGroupChanged(NirGroup? value) => RefreshNirGroup();
+
+        [RelayCommand]
+        private void ShowNirGroup()
+        {
+            CloseErrorScreenIfOpen();
+            ShowExhibits = ShowVuz = ShowGrnti = ShowAll = false;
+            ShowNirGroups = true;
+            ReloadNirGroups();
+            RowCount = NirGroupRows.Count;
+            Status = "Группы НИР: выберите группу по её названию.";
+        }
+
+        [RelayCommand]
+        private void CreateNirGroup()
+        {
+            if (TryCreateNirGroup(NewNirGroupName, out var message))
+                NewNirGroupName = "";
+            NirGroupMessage = message;
+        }
+
+        private bool CanDeleteNirGroup() => SelectedNirGroup != null;
+
+        [RelayCommand(CanExecute = nameof(CanDeleteNirGroup))]
+        private async Task DeleteNirGroupAsync()
+        {
+            if (SelectedNirGroup is not { } group || ConfirmHandler is null) return;
+            try
+            {
+                int count = _nirGroupRepo.GetExhibitIds(group.Code).Count;
+                bool confirmed = await ConfirmHandler("Удаление группы НИР",
+                    $"Удалить группу «{group.Code}»?\n\n" +
+                    $"Связей с выставками в группе: {count}.\n" +
+                    "Будут удалены группа и её связи.");
+                if (!confirmed) return;
+
+                bool deleted = _nirGroupRepo.DeleteGroup(group.Code);
+                SelectedNirGroup = null;
+                ReloadNirGroups();
+                Status = NirGroupMessage = deleted
+                    ? $"Группа «{group.Code}» удалена."
+                    : "Группа уже была удалена. Список обновлён.";
+            }
+            catch (Exception ex)
+            {
+                Status = NirGroupMessage = "Ошибка удаления группы: " + ex.Message;
+            }
+        }
+
+        // Один путь проверки и сохранения для раздела групп и диалога «Новая…».
+        public bool TryCreateNirGroup(string name, out string message)
+        {
+            var code = (name ?? "").Trim();
+            if (code.Length == 0)
+            {
+                message = "Введите название группы.";
+                return false;
+            }
+            if (NirGroups.Any(group => string.Equals(group.Code, code, StringComparison.Ordinal)))
+            {
+                message = "Группа с таким названием уже существует.";
+                return false;
+            }
+            try
+            {
+                _nirGroupRepo.CreateGroup(code);
+                ReloadNirGroups(code);
+                message = $"Группа «{code}» создана.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                message = "Не удалось создать группу: " + ex.Message;
+                return false;
+            }
+        }
+
+        [RelayCommand(CanExecute = nameof(CanAddToNirGroup))]
+        private async Task AddToNirGroup()
+        {
+            var ids = SelectedFullRows.Select(row => row.Id).Distinct().ToArray();
+            await AddExhibitsToGroupAsync(ids);
+        }
+
+        [RelayCommand(CanExecute = nameof(CanAddSelectedExhibitsToNirGroup))]
+        private async Task AddSelectedExhibitsToNirGroup()
+        {
+            var ids = SelectedExhibits.Select(row => row.Id).Distinct().ToArray();
+            await AddExhibitsToGroupAsync(ids);
+        }
+
+        private async Task AddExhibitsToGroupAsync(long[] ids)
+        {
+            if (ids.Length == 0 || SelectNirGroupsHandler is null) return;
+            try
+            {
+                var selected = await SelectNirGroupsHandler();
+                if (selected is null || selected.Length == 0) return;
+                var codes = selected.Distinct(StringComparer.Ordinal).ToArray();
+                int added = _nirGroupRepo.AddMembers(codes, ids);
+                ReloadNirGroups();
+                Status = NirGroupMessage = $"Выставок: {ids.Length}, групп: {codes.Length}. " +
+                    $"Добавлено связей: {added}; уже существовали: {(long)ids.Length * codes.Length - added}.";
+            }
+            catch (Exception ex) { Status = NirGroupMessage = "Ошибка добавления: " + ex.Message; }
+        }
+
+        [RelayCommand(CanExecute = nameof(CanEditFullExhibit))]
+        private async Task EditFullExhibit()
+        {
+            if (!CanEditFullExhibit()) return;
+            var row = Exhibits.FirstOrDefault(item => item.Id == SelectedFullRows[0].Id);
+            if (row is null) return;
+            SelectedExhibits = new() { row };
+            await EditExhibitAsync();
+            var status = Status;
+            SelectFull();
+            Status = status;
+        }
+
+        [RelayCommand(CanExecute = nameof(CanDeleteFullExhibits))]
+        private async Task DeleteFullExhibits()
+        {
+            if (!CanDeleteFullExhibits()) return;
+            var ids = SelectedFullRows.Select(row => row.Id).ToHashSet();
+            SelectedExhibits = Exhibits.Where(row => ids.Contains(row.Id)).ToList();
+            await DeleteExhibitAsync();
+            var status = Status;
+            SelectFull();
+            Status = status;
+        }
+
+        [RelayCommand(CanExecute = nameof(CanRemoveFromNirGroup))]
+        private void RemoveFromNirGroup()
+        {
+            if (!CanRemoveFromNirGroup() || SelectedNirGroup is not { } group) return;
+            var ids = SelectedGroupRows.Select(row => row.Exhibit.Id).Distinct().ToArray();
+            try
+            {
+                int removed = _nirGroupRepo.RemoveMembers(group.Code, ids);
+                RefreshNirGroup();
+                Status = NirGroupMessage = $"Из группы исключено: {removed}.";
+            }
+            catch (Exception ex) { RefreshNirGroup(); NirGroupMessage = "Ошибка исключения: " + ex.Message; }
+        }
+
+        private void ReloadNirGroups(string? preferredCode = null)
+        {
+            var code = preferredCode ?? SelectedNirGroup?.Code;
+            _nirGroupRepo.EnsureCreated();
+            NirGroups = new ObservableCollection<NirGroup>(_nirGroupRepo.GetGroups());
+            SelectedNirGroup = NirGroups.FirstOrDefault(group => group.Code == code);
+            RefreshNirGroup();
+        }
+
+        private void RefreshNirGroup()
+        {
+            SelectedGroupRows = new();
+            if (SelectedNirGroup is not { } group)
+            {
+                NirGroupRows = new();
+            }
+            else
+            {
+                var ids = _nirGroupRepo.GetExhibitIds(group.Code).ToHashSet();
+                NirGroupRows = new ObservableCollection<NirGroupEntry>(FullTable
+                    .Where(row => ids.Contains(row.Id)).DistinctBy(row => row.Id)
+                    .Select(row => new NirGroupEntry { GroupCode = group.Code, Exhibit = row }));
+            }
+            if (ShowNirGroups)
+            {
+                RowCount = NirGroupRows.Count;
+                Status = SelectedNirGroup is null ? "Выберите или создайте группу НИР."
+                    : $"Группа «{SelectedNirGroup.Code}»: {RowCount} строк";
+            }
+        }
 
         public event EventHandler? ShowLogRequested;
         public Func<GrntiTableRow?, Task<GrntiTableRow?>>? GrntiEditHandler { get; set; }
@@ -131,7 +365,9 @@ namespace SQLWerk.ViewModels
             IFilePicker picker,
             IExcelReader reader,
             InMemoryLoggerProvider loggerProvider,
-            CrossValidationService crossValidator)
+            CrossValidationService crossValidator,
+            IBatchDeleteService batchDelete,
+            INirGroupRepository nirGroupRepo)
         {
             _exhibitImport = exhibitImport;
             _vuzImport = vuzImport;
@@ -144,9 +380,12 @@ namespace SQLWerk.ViewModels
             _reader = reader;
             _logProvider = loggerProvider;
             _crossValidator = crossValidator;
+            _batchDelete = batchDelete;
+            _nirGroupRepo = nirGroupRepo;
 
             foreach (var filter in Filters)
                 filter.SelectionChanged += (_, _) => ApplyFiltersAndRefreshStatus();
+
 
             _logProvider.Changed += OnLogChanged;
 
@@ -289,6 +528,7 @@ namespace SQLWerk.ViewModels
                 .Where(s => s.Length > 0)
               .ToHashSet(StringComparer.Ordinal);
 
+            ReloadNirGroups();
             RefreshFilterOptions();
             ApplyFilters();
             //SelectExhibitsCommand.Execute(null);
@@ -321,6 +561,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectExhibits()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowExhibits = true;
@@ -331,6 +572,10 @@ namespace SQLWerk.ViewModels
             RowCount = Exhibits.Count;
             Status = $"Выставки: {RowCount} строк";
         }
+
+
+
+
 
         private void RefreshFilterOptions()
         {
@@ -359,6 +604,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectVuz()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowExhibits = false;
@@ -373,6 +619,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectGrnti()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowExhibits = false;
@@ -387,6 +634,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectFull()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowAll = true;
@@ -519,10 +767,11 @@ namespace SQLWerk.ViewModels
             Status = $"Рубрика добавлена: {result.Codrub} — {result.Rubrika}";
         }
 
-        [RelayCommand]
-        private async Task EditGrntiAsync(GrntiTableRow? row)
+        [RelayCommand(CanExecute = nameof(CanEditGrnti))]
+        private async Task EditGrntiAsync()
         {
-            if (GrntiEditHandler is null || row is null) return;
+            if (GrntiEditHandler is null || !CanEditGrnti()) return;
+            var row = SelectedGrntiRows[0];
 
             var result = await GrntiEditHandler(row);
             if (result is null) return;
@@ -533,26 +782,16 @@ namespace SQLWerk.ViewModels
             Status = $"Рубрика изменена: {result.Codrub} — {result.Rubrika}";
         }
 
-        [RelayCommand]
-        private async Task DeleteGrntiAsync(GrntiTableRow? row)
+        [RelayCommand(CanExecute = nameof(CanDeleteGrnti))]
+        private async Task DeleteGrntiAsync()
         {
-            if (ConfirmHandler is null || row is null) return;
-
-            var ok = await ConfirmHandler(
-                "Удаление рубрики",
-                $"Удалить рубрику «{row.Codrub} — {row.Rubrika}»?\n" +
-                $"Все связи с данной рубрикой будут удалены\n" +
-                $"Действие необратимо.");
-            if (!ok) return;
-
-            StartNewSession();
-
-            _grntiRepo.Delete(row.Id);
-            _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
-
-            ReloadFromDatabase();
-            SelectGrntiCommand.Execute(null);
-            Status = $"Рубрика удалена: {row.Codrub} — {row.Rubrika}";
+            var rows = SelectedGrntiRows.DistinctBy(row => row.Id).ToList();
+            if (rows.Count == 0) return;
+            var ids = rows.Select(row => row.Id).ToArray();
+            await DeleteSelectedAsync(
+                "Удаление рубрик ГРНТИ", rows.Select(row => $"{row.Codrub} — {row.Rubrika}").ToList(),
+                "Все выставки, содержащие хотя бы одну выбранную рубрику ГРНТИ, также будут удалены.",
+                () => _batchDelete.DeleteGrnti(ids), SelectGrnti);
         }
 
         [RelayCommand]
@@ -568,10 +807,11 @@ namespace SQLWerk.ViewModels
             Status = $"ВУЗ добавлен: {result.Codvuz}";
         }
 
-        [RelayCommand]
-        private async Task EditVuzAsync(VuzTableRow? row)
+        [RelayCommand(CanExecute = nameof(CanEditVuz))]
+        private async Task EditVuzAsync()
         {
-            if (VuzEditHandler is null || row is null) return;
+            if (VuzEditHandler is null || !CanEditVuz()) return;
+            var row = SelectedVuzes[0];
             var result = await VuzEditHandler(row);
             if (result is null) return;
 
@@ -581,25 +821,16 @@ namespace SQLWerk.ViewModels
             Status = $"ВУЗ изменён: {result.Codvuz}";
         }
 
-        [RelayCommand]
-        private async Task DeleteVuzAsync(VuzTableRow? row)
+        [RelayCommand(CanExecute = nameof(CanDeleteVuz))]
+        private async Task DeleteVuzAsync()
         {
-            if (ConfirmHandler is null || row is null) return;
-
-            var ok = await ConfirmHandler(
-                "Удаление ВУЗа",
-                $"Удалить ВУЗ «{row.Codvuz} — {row.Z1}»?\n" +
-                $"Все связанные выставки этого ВУЗа также будут удалены.");
-            if (!ok) return;
-
-            StartNewSession();
-
-            _vuzRepo.Delete(row.Id);
-            _crossValidator.RemoveInvalidExhibits(_exhibitRepo, _vuzRepo, _grntiRepo);
-
-            ReloadFromDatabase();
-            SelectVuzCommand.Execute(null);
-            Status = $"ВУЗ удалён: {row.Codvuz}";
+            var rows = SelectedVuzes.DistinctBy(row => row.Id).ToList();
+            if (rows.Count == 0) return;
+            var ids = rows.Select(row => row.Id).ToArray();
+            await DeleteSelectedAsync(
+                "Удаление вузов", rows.Select(row => $"{row.Codvuz} — {row.Z1}").ToList(),
+                "Все выставки, связанные с выбранными вузами, также будут удалены.",
+                () => _batchDelete.DeleteVuzes(ids), SelectVuz);
         }
 
         [RelayCommand]
@@ -615,10 +846,11 @@ namespace SQLWerk.ViewModels
             Status = $"Выставка с регистрационным номером {result.Regnumber} добавлена";
         }
 
-        [RelayCommand]
-        private async Task EditExhibitAsync(ExhibitTableRow? row)
+        [RelayCommand(CanExecute = nameof(CanEditExhibit))]
+        private async Task EditExhibitAsync()
         {
-            if (ExhibitEditHandler is null || row is null) return;
+            if (ExhibitEditHandler is null || !CanEditExhibit()) return;
+            var row = SelectedExhibits[0];
             var result = await ExhibitEditHandler(row);
             if (result is null) return;
 
@@ -628,22 +860,51 @@ namespace SQLWerk.ViewModels
             Status = $"Выставка с регистрационным номером {result.Regnumber} изменена";
         }
 
-        [RelayCommand]
-        private async Task DeleteExhibitAsync(ExhibitTableRow? row)
+        [RelayCommand(CanExecute = nameof(CanDeleteExhibit))]
+        private async Task DeleteExhibitAsync()
         {
-            if (ConfirmHandler is null || row is null) return;
+            var rows = SelectedExhibits.DistinctBy(row => row.Id).ToList();
+            if (rows.Count == 0) return;
+            var ids = rows.Select(row => row.Id).ToArray();
+            await DeleteSelectedAsync(
+                "Удаление выставок", rows.Select(row => $"{row.Regnumber} — {row.Subject}").ToList(),
+                null,
+                () => _batchDelete.DeleteExhibits(ids), SelectExhibits);
+        }
 
-            var ok = await ConfirmHandler(
-                "Удаление выставки",
-                $"Удалить выставку с регистрационным номером {row.Regnumber} «{row.Subject}»?\nДействие необратимо.");
-            if (!ok) return;
+        private async Task DeleteSelectedAsync(string title, List<string> labels,
+            string? relatedWarning, Func<(int Deleted, int Related)> delete, Action showTable)
+        {
+            if (ConfirmHandler is null) return;
+            var preview = string.Join("\n", labels.Take(10).Select(label => "• " + label));
+            if (labels.Count > 10) preview += $"\n… и ещё {labels.Count - 10}";
+            bool confirmed;
+            if (labels.Count > 1)
+            { 
+            confirmed = await ConfirmHandler(title,
+                $"Удалить выбранные записи: {labels.Count}?\n\n" +
+                relatedWarning + "\nДействие необратимо.");
+            }
+            else
+            {
+                confirmed = await ConfirmHandler(title,
+                $"Удалить выбранные записи: {labels.Count}?\n\n{preview}\n\n" +
+                relatedWarning + "\nДействие необратимо.");
+            }
+            if (!confirmed) return;
 
-
-            _exhibitRepo.Delete(row.Id);
-
-            ReloadFromDatabase();
-            SelectExhibitsCommand.Execute(null);
-            Status = $"Выставка с регистрационным номером {row.Regnumber} удалена";
+            try
+            {
+                StartNewSession();
+                var result = delete();
+                ReloadFromDatabase();
+                showTable();
+                Status = $"Удалено записей: {result.Deleted}; связанных выставок: {result.Related}";
+            }
+            catch (Exception ex)
+            {
+                Status = "Ошибка удаления: " + ex.Message;
+            }
         }
 
         private void CloseErrorScreenIfOpen()

@@ -60,6 +60,8 @@ public partial class App : Application
         var logProvider = new InMemoryLoggerProvider();
         services.AddSingleton(logProvider);
         services.AddScoped<CrossValidationService>();
+        services.AddScoped<IBatchDeleteService, BatchDeleteService>();
+        services.AddScoped<INirGroupRepository, NirGroupRepository>();
         services.AddLogging(b => b.AddProvider(logProvider).SetMinimumLevel(LogLevel.Information));
         services.AddTransient<LogViewModel>();
         services.AddSingleton<IExcelReader, ExcelReader>();

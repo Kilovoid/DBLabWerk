@@ -11,7 +11,13 @@ namespace SQLWerk.Services
     {
         private readonly ILogger<CrossValidationService> _logger;
 
-        public CrossValidationService(ILogger<CrossValidationService> logger) => _logger = logger;
+        private readonly IBatchDeleteService _batchDelete;
+
+        public CrossValidationService(ILogger<CrossValidationService> logger, IBatchDeleteService batchDelete)
+        {
+            _logger = logger;
+            _batchDelete = batchDelete;
+        }
 
         public int RemoveInvalidExhibits(
             IExhibitRepository exhibitRepo,
@@ -30,7 +36,7 @@ namespace SQLWerk.Services
                 .ToHashSet(StringComparer.Ordinal);
 
             var exhibits = exhibitRepo.GetAll();
-            var kept = new List<ExhibitTableRow>(exhibits.Count);
+            var invalidIds = new List<long>();
             int removed = 0;
 
             foreach (var e in exhibits)
@@ -49,11 +55,12 @@ namespace SQLWerk.Services
 
                 if (issues.Count == 0)
                 {
-                    kept.Add(e);
+                    continue;
                 }
                 else
                 {
                     removed++;
+                    invalidIds.Add(e.Id);
 
                     var reg = string.IsNullOrWhiteSpace(e.Regnumber) ? "—" : e.Regnumber.Trim();
                     var subj = string.IsNullOrWhiteSpace(e.Subject) ? "—" : e.Subject.Trim();
@@ -66,8 +73,7 @@ namespace SQLWerk.Services
 
             if (removed > 0)
             {
-                exhibitRepo.Clear();
-                exhibitRepo.SaveAll(kept);
+                _batchDelete.DeleteExhibits(invalidIds);
             }
 
             return removed;

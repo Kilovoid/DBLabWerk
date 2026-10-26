@@ -1,9 +1,21 @@
-﻿<Application xmlns="https://github.com/avaloniaui"
+<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SQLWerk.App"
              xmlns:local="using:SQLWerk"
              RequestedThemeVariant="Light">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.Resources>
+        <!-- Цвет отмеченных CheckBox в фильтрах и выборе групп. -->
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked">#48A9E6</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver">#3498DB</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed">#2485C2</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver">#3498DB</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed">#2485C2</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked">White</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver">White</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed">White</SolidColorBrush>
+    </Application.Resources>
 
     <Application.DataTemplates>
         <local:ViewLocator />

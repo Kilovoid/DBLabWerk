@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:primitives="clr-namespace:Avalonia.Controls.Primitives;assembly=Avalonia.Controls"
+        x:Class="SQLWerk.Views.NirGroupPickerWindow"
+        Title="Добавить выставки в группы НИР"
+        Width="480" Height="230" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        KeyDown="OnPopupKeyDown">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Text="Группы для выбранных выставок:"
+                   FontWeight="SemiBold" Margin="0,0,0,10"/>
+        <Button x:Name="GroupsButton" Grid.Row="1" Height="50" Padding="10,6"
+                HorizontalAlignment="Stretch" Content="Выберите группы ▾"
+                Click="OnGroupsButtonClick"/>
+        <TextBlock x:Name="SelectionSummary" Grid.Row="2" Text="Выбрано групп: 0"
+                   Margin="0,8,0,8" TextWrapping="Wrap"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right">
+            <Button x:Name="AddButton" Content="Добавить" IsDefault="True"
+                    IsEnabled="False" Click="OnAddClick"/>
+            <Button Content="Отмена" IsCancel="True" Click="OnCancelClick"/>
+        </StackPanel>
+        <primitives:Popup x:Name="GroupsPopup" Placement="Bottom"
+                          IsLightDismissEnabled="True">
+            <Border Width="380" Background="White" BorderBrush="#CCCCCC"
+                    BorderThickness="1" CornerRadius="4" Padding="10"
+                    KeyDown="OnPopupKeyDown">
+                <StackPanel Spacing="8">
+                    <TextBox x:Name="GroupSearch" PlaceholderText="Поиск по подстроке..."
+                             TextChanged="OnSearchChanged"/>
+                    <TextBlock x:Name="EmptyHint" Text="Групп пока нет. Выберите «Новая…»."
+                               TextWrapping="Wrap" IsVisible="False"/>
+                    <ScrollViewer Height="180" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="GroupOptions" Spacing="4"/>
+                    </ScrollViewer>
+                    <Separator/>
+                    <Button x:Name="NewGroupButton" Content="Новая…" Click="OnNewGroupClick"
+                            HorizontalAlignment="Stretch"/>
+                </StackPanel>
+            </Border>
+        </primitives:Popup>
+    </Grid>
+</Window>

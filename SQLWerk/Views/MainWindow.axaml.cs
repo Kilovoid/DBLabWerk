@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
+using System.Linq;
 using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using SQLWerk.Models;
@@ -20,11 +21,41 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel vm)
         {
             vm.ShowLogRequested += OnShowLog;
+            vm.SelectNirGroupsHandler = ShowNirGroupPickerAsync;
             vm.GrntiEditHandler = ShowGrntiEditAsync;
             vm.ConfirmHandler = ShowConfirmAsync;
             vm.VuzEditHandler = ShowVuzEditAsync;
             vm.ExhibitEditHandler = ShowExhibitEditAsync;
         }
+    }
+
+    private void OnGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm || sender is not DataGrid grid) return;
+        switch (grid.Name)
+        {
+            case "ExhibitsGrid":
+                vm.SelectedExhibits = grid.SelectedItems.OfType<ExhibitTableRow>().ToList();
+                break;
+            case "VuzGrid":
+                vm.SelectedVuzes = grid.SelectedItems.OfType<VuzTableRow>().ToList();
+                break;
+            case "NirGroupsGrid":
+                vm.SelectedGroupRows = grid.SelectedItems.OfType<NirGroupEntry>().ToList();
+                break;
+            case "FullGrid":
+                vm.SelectedFullRows = grid.SelectedItems.OfType<FullModel>().ToList();
+                break;
+            case "GrntiGrid":
+                vm.SelectedGrntiRows = grid.SelectedItems.OfType<GrntiTableRow>().ToList();
+                break;
+        }
+    }
+
+    private async Task<string[]?> ShowNirGroupPickerAsync()
+    {
+        if (DataContext is not MainWindowViewModel vm) return null;
+        return await new NirGroupPickerWindow(vm).ShowDialog<string[]?>(this);
     }
 
     private void OnShowLog(object? sender, EventArgs e)
