@@ -18,6 +18,11 @@ public partial class GrntiEntryVM : ObservableObject
 
 public partial class ExhibitEditViewModel : ObservableObject
 {
+    public static Dictionary<int, string> VuzNames { get; set; } = new();
+    public string VuzName => string.IsNullOrWhiteSpace(Codvuz) ? ""
+        : int.TryParse(Codvuz.Trim(), out var code) && VuzNames.TryGetValue(code, out var name)
+            ? name : "Вуз с таким кодом не найден";
+    partial void OnCodvuzChanged(string value) => OnPropertyChanged(nameof(VuzName));
     public static List<string> VuzCodes { get; set; } = new();
     public static List<string> GrntiRubrics { get; set; } = new();
 

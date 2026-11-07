@@ -92,7 +92,7 @@
                                 Command="{Binding EditExhibitCommand}"/>
 						<Button Content="Удалить"
                                 Command="{Binding DeleteExhibitCommand}"/>
-					</StackPanel>
+                    </StackPanel>
 
 					<DataGrid x:Name="ExhibitsGrid" SelectionMode="Extended"
                               SelectionChanged="OnGridSelectionChanged" Grid.Row="1"
@@ -197,22 +197,15 @@
 
 				<Grid IsVisible="{Binding ShowAll}" RowDefinitions="Auto,*">
 
-					<Border Grid.Row="0" Background="#F0F0F0" BorderBrush="#CCCCCC"
-                            BorderThickness="1" CornerRadius="4" Padding="8" Margin="8">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Фильтры" FontWeight="SemiBold"/>
-                            <WrapPanel Orientation="Horizontal">
-                                <views:MultiSelectFilterView DataContext="{Binding RegionFilter}" Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding OblFilter}" Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding CityFilter}" Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding GrntiFilter}" Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding ExhitypeFilter}" Width="245" Margin="0,0,8,6"/>
-                                <views:MultiSelectFilterView DataContext="{Binding TypeFilter}" Width="245" Margin="0,0,8,6"/>
-                            </WrapPanel>
-                            <Button Content="Сбросить фильтры" Command="{Binding ResetFiltersCommand}"
-                                    HorizontalAlignment="Right"/>
-                        </StackPanel>
-                    </Border>
+                    <Expander Grid.Row="0" Header="Фильтры" IsExpanded="False"
+                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                              Margin="8,4,8,4">
+                        <DockPanel Margin="0,4,0,0">
+                            <Button DockPanel.Dock="Right" Content="Сброс" Command="{Binding ResetFiltersCommand}"
+                                    VerticalAlignment="Top" MinHeight="0" Height="26" Padding="8,2" Margin="4,0,0,0"/>
+                            <views:ProjectFiltersWindow DataContext="{Binding ProjectFilters}"/>
+                        </DockPanel>
+                    </Expander>
 
                     <DataGrid x:Name="FullGrid" Grid.Row="1"
                               SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"
@@ -255,9 +248,11 @@
 			
                 <Grid IsVisible="{Binding ShowNirGroups}" RowDefinitions="Auto,*" Margin="8">
                     <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,8">
+                        <TextBox Text="{Binding NirGroupSearch, Mode=TwoWay}" PlaceholderText="Поиск группы по названию среди всех групп…"/>
+                        <TextBlock Text="{Binding FilteredNirGroups.Count, StringFormat='Найдено групп: {0}'}"/>
                         <WrapPanel Orientation="Horizontal">
                             <TextBlock Text="Группа:" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                            <ComboBox ItemsSource="{Binding NirGroups}"
+                            <ComboBox ItemsSource="{Binding FilteredNirGroups}"
                                       SelectedItem="{Binding SelectedNirGroup, Mode=TwoWay}"
                                       Width="240" Margin="0,0,12,8">
                                 <ComboBox.ItemTemplate>
@@ -277,6 +272,13 @@
                                        VerticalAlignment="Center"/>
 							<Button Content="Убрать выбранные из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
 						</StackPanel>
+                        <ScrollViewer MaxHeight="130" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{Binding GroupRubrics}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding GroupRegions}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding GroupDistricts}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </ScrollViewer>
                         <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <DataGrid x:Name="NirGroupsGrid" Grid.Row="1" ItemsSource="{Binding NirGroupRows}"

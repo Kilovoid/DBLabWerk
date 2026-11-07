@@ -16,6 +16,8 @@
                                       IsTextCompletionEnabled="False"
                                       HorizontalAlignment="Stretch"/>
 
+            <TextBlock Text="{Binding VuzName}" TextWrapping="Wrap" Foreground="#315B80"/>
+
             <TextBlock Text="Признак формы *"/>
             <ComboBox ItemsSource="{x:Static vm:ExhibitEditViewModel.TypeOptions}"
                       SelectedItem="{Binding Type}"

@@ -1,4 +1,4 @@
-﻿using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
 using SQLWerk.Data.Extensions;
 using System;
@@ -95,6 +95,9 @@ namespace SQLWerk.Data.Sqlite
             cmd.AddParam("$c", row.Codrub);
             cmd.AddParam("$r", row.Rubrika);
             cmd.ExecuteNonQuery();
+            cmd.Parameters.Clear();
+            cmd.CommandText = "SELECT last_insert_rowid();";
+            row.Id = Convert.ToInt64(cmd.ExecuteScalar());
         }
 
         public void Update(GrntiTableRow row)

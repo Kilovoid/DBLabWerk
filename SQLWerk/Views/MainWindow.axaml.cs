@@ -2,6 +2,8 @@ using System;
 using System.Threading.Tasks;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using SQLWerk.Models;
 using SQLWerk.ViewModels;
@@ -11,22 +13,51 @@ namespace SQLWerk.Views;
 public partial class MainWindow : Window
 {
     private LogWindow? _logWindow;
+    private MainWindowViewModel? _boundVm;
 
     public MainWindow() => InitializeComponent();
 
     protected override void OnDataContextChanged(EventArgs e)
     {
+        if (_boundVm != null)
+        {
+            _boundVm.ShowLogRequested -= OnShowLog;
+            _boundVm.NavigateToRecordRequested -= OnNavigateToRecord;
+        }
+        _boundVm = null;
         base.OnDataContextChanged(e);
 
         if (DataContext is MainWindowViewModel vm)
         {
+            _boundVm = vm;
             vm.ShowLogRequested += OnShowLog;
+            vm.NavigateToRecordRequested += OnNavigateToRecord;
             vm.SelectNirGroupsHandler = ShowNirGroupPickerAsync;
             vm.GrntiEditHandler = ShowGrntiEditAsync;
             vm.ConfirmHandler = ShowConfirmAsync;
             vm.VuzEditHandler = ShowVuzEditAsync;
             vm.ExhibitEditHandler = ShowExhibitEditAsync;
         }
+    }
+
+    private void OnNavigateToRecord(string table, long id)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (DataContext is not MainWindowViewModel vm) return;
+            DataGrid? grid = null;
+            object? item = null;
+            switch (table)
+            {
+                case "Exhibit": grid = this.FindControl<DataGrid>("ExhibitsGrid"); item = vm.Exhibits.FirstOrDefault(r => r.Id == id); break;
+                case "Vuz": grid = this.FindControl<DataGrid>("VuzGrid"); item = vm.Vuzes.FirstOrDefault(r => r.Id == id); break;
+                case "Grnti": grid = this.FindControl<DataGrid>("GrntiGrid"); item = vm.Grnti.FirstOrDefault(r => r.Id == id); break;
+            }
+            if (grid == null || item == null) return;
+            grid.SelectedItem = item;
+            grid.ScrollIntoView(item, null);
+            grid.Focus();
+        }, DispatcherPriority.Loaded);
     }
 
     private void OnGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
