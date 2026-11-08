@@ -13,6 +13,7 @@ public partial class NirGroupPickerWindow : Window
 {
     private readonly MainWindowViewModel? _vm;
     private readonly Dictionary<string, CheckBox> _choices = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _searchValues = new(StringComparer.Ordinal);
     private readonly StackPanel _options;
     private readonly TextBlock _emptyHint;
     private readonly TextBlock _summary;
@@ -53,11 +54,17 @@ public partial class NirGroupPickerWindow : Window
 
         _options.Children.Clear();
         _choices.Clear();
+        _searchValues.Clear();
         foreach (var group in _vm.NirGroups)
         {
+            var label = new StackPanel { Spacing = 2 };
+            label.Children.Add(new TextBlock { Text = group.Code, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+            if (!string.IsNullOrWhiteSpace(group.Comment))
+                label.Children.Add(new TextBlock { Text = group.Comment, FontSize = 11,
+                    Foreground = Avalonia.Media.Brushes.Gray, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
             var checkBox = new CheckBox
             {
-                Content = new TextBlock { Text = group.Code, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                Content = label,
                 IsChecked = selected.Contains(group.Code)
             };
             checkBox.PropertyChanged += (_, e) =>
@@ -65,6 +72,7 @@ public partial class NirGroupPickerWindow : Window
                 if (e.Property.Name == nameof(CheckBox.IsChecked)) UpdateSelection();
             };
             _choices.Add(group.Code, checkBox);
+            _searchValues[group.Code] = group.Code + "\n" + group.Comment;
             _options.Children.Add(checkBox);
         }
         _emptyHint.IsVisible = _choices.Count == 0;
@@ -81,7 +89,7 @@ public partial class NirGroupPickerWindow : Window
     {
         var search = (text ?? "").Trim();
         foreach (var item in _choices)
-            item.Value.IsVisible = item.Key.Contains(search, StringComparison.OrdinalIgnoreCase);
+            item.Value.IsVisible = search.Length == 0 || _searchValues[item.Key].Contains(search, StringComparison.OrdinalIgnoreCase);
     }
 
     private string[] SelectedCodes() => _choices.Where(item => item.Value.IsChecked == true)

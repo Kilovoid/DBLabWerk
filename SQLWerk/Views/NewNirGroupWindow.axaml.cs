@@ -24,7 +24,8 @@ public partial class NewNirGroupWindow : Window
     {
         if (_vm is null) return;
         var code = (_input.Text ?? "").Trim();
-        if (!_vm.TryCreateNirGroup(code, out var error))
+        var comment = this.FindControl<TextBox>("GroupCommentInput")?.Text ?? "";
+        if (!_vm.TryCreateNirGroup(code, comment, out var error))
         {
             _message.Text = error;
             _input.Focus();

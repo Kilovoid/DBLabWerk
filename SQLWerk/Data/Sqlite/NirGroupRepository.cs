@@ -74,6 +74,16 @@ internal sealed class NirGroupRepository : INirGroupRepository
             CREATE INDEX IF NOT EXISTS IX_NirGroupMembers_ExhibitId ON NirGroupMembers(ExhibitId);
             """;
         command.ExecuteNonQuery();
+        bool hasComment = false;
+        command.CommandText = "PRAGMA table_info(NirGroups);";
+        using (var reader = command.ExecuteReader())
+            while (reader.Read())
+                if (reader.GetString(1).Equals("Comment", StringComparison.OrdinalIgnoreCase)) hasComment = true;
+        if (!hasComment)
+        {
+            command.CommandText = "ALTER TABLE NirGroups ADD COLUMN Comment TEXT NOT NULL DEFAULT '';";
+            command.ExecuteNonQuery();
+        }
         command.CommandText = "PRAGMA foreign_key_check(NirGroupMembers);";
         using (var reader = command.ExecuteReader())
             if (reader.Read())
@@ -86,23 +96,40 @@ internal sealed class NirGroupRepository : INirGroupRepository
         using var connection = _factory.Create();
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT Code FROM NirGroups ORDER BY Code;";
+        command.CommandText = "SELECT Code, Comment FROM NirGroups ORDER BY Code;";
         using var reader = command.ExecuteReader();
         var groups = new List<NirGroup>();
         while (reader.Read())
-            groups.Add(new NirGroup { Code = reader.GetString(0) });
+            groups.Add(new NirGroup { Code = reader.GetString(0), Comment = reader.IsDBNull(1) ? "" : reader.GetString(1) });
         return groups;
     }
 
-    public void CreateGroup(string code)
+    public void CreateGroup(string code, string comment = "")
     {
         code = NormalizeCode(code);
         using var connection = _factory.Create();
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO NirGroups(Code) VALUES ($code);";
+        command.CommandText = "INSERT INTO NirGroups(Code, Comment) VALUES ($code, $comment);";
         command.Parameters.AddWithValue("$code", code);
+        command.Parameters.AddWithValue("$comment", (comment ?? "").Trim());
         command.ExecuteNonQuery();
+    }
+
+    public void UpdateGroup(string originalCode, string code, string comment)
+    {
+        originalCode = NormalizeCode(originalCode);
+        code = NormalizeCode(code);
+        using var connection = _factory.Create();
+        connection.Open();
+        using var command = connection.CreateCommand();
+        // ON UPDATE CASCADE preserves the group's members when its name changes.
+        command.CommandText = "UPDATE NirGroups SET Code=$code, Comment=$comment WHERE Code=$original;";
+        command.Parameters.AddWithValue("$code", code);
+        command.Parameters.AddWithValue("$comment", (comment ?? "").Trim());
+        command.Parameters.AddWithValue("$original", originalCode);
+        if (command.ExecuteNonQuery() == 0)
+            throw new InvalidOperationException("Группа не найдена. Обновите список.");
     }
 
     public bool DeleteGroup(string groupCode)

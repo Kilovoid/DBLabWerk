@@ -248,8 +248,7 @@
 			
                 <Grid IsVisible="{Binding ShowNirGroups}" RowDefinitions="Auto,*" Margin="8">
                     <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,8">
-                        <TextBox Text="{Binding NirGroupSearch, Mode=TwoWay}" PlaceholderText="Поиск группы по названию среди всех групп…"/>
-                        <TextBlock Text="{Binding FilteredNirGroups.Count, StringFormat='Найдено групп: {0}'}"/>
+                        <TextBox Text="{Binding NirGroupSearch, Mode=TwoWay}" PlaceholderText="Поиск по названию и комментарию"/>
                         <WrapPanel Orientation="Horizontal">
                             <TextBlock Text="Группа:" VerticalAlignment="Center" Margin="0,0,8,8"/>
                             <ComboBox ItemsSource="{Binding FilteredNirGroups}"
@@ -257,16 +256,27 @@
                                       Width="240" Margin="0,0,12,8">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate x:DataType="models:NirGroup">
-                                        <TextBlock Text="{Binding Code}"/>
+                                        <TextBlock Text="{Binding Code}" ToolTip.Tip="{Binding Comment}"/>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                             <TextBox Text="{Binding NewNirGroupName, Mode=TwoWay}"
                                      PlaceholderText="Название новой группы"
                                      Width="270" Margin="0,0,8,8"/>
+                            <TextBox Text="{Binding NewNirGroupComment, Mode=TwoWay}" PlaceholderText="Комментарий"
+                                     Width="240" Margin="0,0,8,8"/>
                             <Button Content="Создать группу" Command="{Binding CreateNirGroupCommand}" Margin="0,0,0,8"/>
                             <Button Content="Удалить группу" Command="{Binding DeleteNirGroupCommand}" Margin="8,0,0,8"/>
                         </WrapPanel>
+                        <Grid ColumnDefinitions="*,2*,Auto,Auto" IsEnabled="{Binding HasSelectedNirGroup}">
+                            <TextBox Text="{Binding EditedNirGroupName, Mode=TwoWay}" PlaceholderText="Название" Margin="0,0,8,0"/>
+                            <TextBox Grid.Column="1" Text="{Binding EditedNirGroupComment, Mode=TwoWay}"
+                                     PlaceholderText="Комментарий" AcceptsReturn="True" TextWrapping="Wrap"
+                                     MaxHeight="70" Margin="0,0,8,0"/>
+                            <Button Grid.Column="2" Content="Сохранить" Command="{Binding SaveNirGroupCommand}"
+                                    VerticalAlignment="Top" Margin="0,0,8,0"/>
+                            <Button Grid.Column="3" Content="Отмена" Command="{Binding ResetNirGroupEditCommand}" VerticalAlignment="Top"/>
+                        </Grid>
 						<StackPanel Orientation="Horizontal" Spacing="12">
 							<TextBlock Text="{Binding NirGroupRows.Count, StringFormat='Выставок в группе: {0}'}"
                                        VerticalAlignment="Center"/>
