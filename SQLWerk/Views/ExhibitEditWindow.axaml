@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SQLWerk.ViewModels"
+        xmlns:models="using:SQLWerk.Models"
         x:Class="SQLWerk.Views.ExhibitEditWindow"
         x:DataType="vm:ExhibitEditViewModel"
         Width="560" Height="720"
@@ -9,14 +10,18 @@
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="6">
             <TextBlock Text="Код ВУЗа *"/>
-            <AutoCompleteBox
-                                      ItemsSource="{x:Static vm:ExhibitEditViewModel.VuzCodes}"
-                                      Text="{Binding Codvuz, Mode=TwoWay}"
-                                      FilterMode="Contains" MinimumPrefixLength="1"
-                                      IsTextCompletionEnabled="False"
-                                      HorizontalAlignment="Stretch"/>
-
-            <TextBlock Text="{Binding VuzName}" TextWrapping="Wrap" Foreground="#315B80"/>
+            <Grid ColumnDefinitions="130,*">
+                <AutoCompleteBox ItemsSource="{x:Static vm:ExhibitEditViewModel.VuzSuggestions}"
+                                 ValueMemberBinding="{ReflectionBinding Code}"
+                                 Text="{Binding Codvuz, Mode=TwoWay}" FilterMode="Contains" MinimumPrefixLength="1"
+                                 IsTextCompletionEnabled="False" HorizontalAlignment="Stretch">
+                    <AutoCompleteBox.ItemTemplate><DataTemplate x:DataType="models:VuzCodeSuggestion">
+                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                    </DataTemplate></AutoCompleteBox.ItemTemplate>
+                </AutoCompleteBox>
+                <TextBlock Grid.Column="1" Text="{Binding VuzName}" TextWrapping="Wrap" Foreground="#315B80"
+                           Margin="10,0,0,0" VerticalAlignment="Center"/>
+            </Grid>
 
             <TextBlock Text="Признак формы *"/>
             <ComboBox ItemsSource="{x:Static vm:ExhibitEditViewModel.TypeOptions}"

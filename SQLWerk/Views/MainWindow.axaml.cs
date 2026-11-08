@@ -3,6 +3,8 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,11 +17,36 @@ public partial class MainWindow : Window
 {
     private LogWindow? _logWindow;
     private MainWindowViewModel? _boundVm;
-    private bool _selectingGroupSuggestion;
     private Action? _pendingNavigation;
     private readonly HashSet<Window> _navigationDialogs = new();
 
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        // Let inner viewers handle the wheel first, then prevent propagation to the page.
+        this.FindControl<DataGrid>("NirGroupsGrid")?.AddHandler(
+            InputElement.PointerWheelChangedEvent, (_, e) => e.Handled = true,
+            RoutingStrategies.Bubble, handledEventsToo: true);
+        this.FindControl<TextBox>("GroupCommentEditor")?.AddHandler(
+            InputElement.PointerWheelChangedEvent, (_, e) => e.Handled = true,
+            RoutingStrategies.Bubble, handledEventsToo: true);
+        // The grid scrolls its rows; row focus must not scroll the whole group page.
+        this.FindControl<DataGrid>("NirGroupsGrid")?.AddHandler(
+            InputElement.PointerPressedEvent, OnGroupRightClick, RoutingStrategies.Tunnel);
+        this.FindControl<DataGrid>("NirGroupsGrid")?.AddHandler(
+            Control.RequestBringIntoViewEvent, (_, e) => e.Handled = true,
+            RoutingStrategies.Bubble);
+    }
+
+    private void OnGroupRightClick(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not DataGrid grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        var control = e.Source as Control;
+        var row = control as DataGridRow ?? control?.FindAncestorOfType<DataGridRow>();
+        if (row?.DataContext is not NirGroupEntry entry || grid.SelectedItems.Contains(entry)) return;
+        grid.SelectedItems.Clear();
+        grid.SelectedItem = entry;
+    }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
@@ -137,9 +164,8 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(() =>
             {
                 if (!ReferenceEquals(DataContext, vm) || !vm.ShowNirGroups) return;
-                this.FindControl<ScrollViewer>("GroupPageScroll")?.ScrollToHome();
-                var selector = this.FindControl<ComboBox>("GroupSelector");
-                selector?.Focus();
+                this.FindControl<ScrollViewer>("GroupDetailsScroll")?.ScrollToHome();
+                this.FindControl<NirGroupSelectorView>("GroupSelector")?.FocusSelector();
                 this.FindControl<Control>("SelectedGroupHeader")?.BringIntoView();
             }, DispatcherPriority.Loaded);
         });
@@ -166,35 +192,6 @@ public partial class MainWindow : Window
                 vm.SelectedGrntiRows = grid.SelectedItems.OfType<GrntiTableRow>().ToList();
                 break;
         }
-    }
-
-    private void OnGroupSuggestionSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_selectingGroupSuggestion || DataContext is not MainWindowViewModel vm) return;
-        var group = e.AddedItems.OfType<NirGroup>().FirstOrDefault();
-        if (group == null) return;
-        _selectingGroupSuggestion = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            try
-            {
-                // Complete the AutoCompleteBox text update before selecting the group.
-                vm.NirGroupSearch = "";
-                vm.NirGroupCommentSearch = "";
-                vm.SelectedNirGroup = vm.NirGroups.FirstOrDefault(g => g.Code == group.Code);
-                if (sender is AutoCompleteBox input) input.IsDropDownOpen = false;
-            }
-            finally { _selectingGroupSuggestion = false; }
-        }, DispatcherPriority.Background);
-    }
-
-    private async void OnNewNirGroupClick(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm) return;
-        var button = sender as Button;
-        if (button != null) button.IsEnabled = false;
-        try { await new NewNirGroupWindow(vm).ShowDialog<string?>(this); }
-        finally { if (button != null) button.IsEnabled = true; }
     }
 
     private async Task<string[]?> ShowNirGroupPickerAsync()
