@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -11,115 +10,78 @@ namespace SQLWerk.ViewModels;
 public partial class FilterValueViewModel : ObservableObject
 {
     public string Value { get; }
-    public string Label => Value.Length == 0 ? "(Пусто)" : Value;
-
+    public string Label { get; }
     [ObservableProperty] private bool _isSelected;
-
-    public FilterValueViewModel(string value, bool isSelected)
-    {
-        Value = value;
-        _isSelected = isSelected;
-    }
+    public FilterValueViewModel(string value, bool selected, string? label = null)
+    { Value = value; Label = label ?? (value.Length == 0 ? "(Пустые)" : value); _isSelected = selected; }
 }
 
 public partial class MultiSelectFilterViewModel : ObservableObject
 {
     private readonly List<FilterValueViewModel> _values = new();
+    private HashSet<string>? _selection;
     private bool _updating;
-
     public string Title { get; }
+    public bool IsActive => _selection != null;
     public ObservableCollection<FilterValueViewModel> VisibleValues { get; } = new();
     public event EventHandler? SelectionChanged;
-
     [ObservableProperty] private string _searchText = "";
-
-    public string Summary
-    {
-        get
-        {
-            var selected = _values.Where(value => value.IsSelected).ToList();
-            if (selected.Count == _values.Count) return "Все значения";
-            if (selected.Count == 0) return "Ничего не выбрано";
-            return selected.Count <= 2
-                ? string.Join(", ", selected.Select(value => value.Label))
-                : $"Выбрано: {selected.Count} из {_values.Count}";
-        }
-    }
-
     public MultiSelectFilterViewModel(string title) => Title = title;
+    public HashSet<string>? GetSelection() => _selection == null ? null : new(_selection, StringComparer.OrdinalIgnoreCase);
 
-    // null означает отсутствие ограничения. Пустой набор — не выбрано ничего.
-    public HashSet<string>? GetSelection() => _values.All(value => value.IsSelected)
-        ? null
-        : _values.Where(value => value.IsSelected)
-            .Select(value => value.Value)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-    public void SetValues(IEnumerable<string?> values)
+    public bool? AllVisibleSelected
     {
-        var selection = GetSelection();
-        foreach (var item in _values)
-            item.PropertyChanged -= OnValueChanged;
+        get => VisibleValues.Count == 0 ? false : VisibleValues.All(v => v.IsSelected) ? true
+            : VisibleValues.All(v => !v.IsSelected) ? false : null;
+        set
+        {
+            if (value == null || _updating) return;
+            _updating = true;
+            try { foreach (var item in VisibleValues) item.IsSelected = value.Value; }
+            finally { _updating = false; }
+            OnPropertyChanged();
+        }
+    }
+    public void SetValues(IEnumerable<string?> values, Func<string, string>? label = null)
+    {
+        foreach (var item in _values) item.PropertyChanged -= OnItemChanged;
         _values.Clear();
-
-        foreach (var value in values.Select(value => (value ?? "").Trim())
-                     .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value))
+        foreach (var value in values.Select(v => (v ?? "").Trim()).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(v => v))
         {
-            var item = new FilterValueViewModel(value, selection == null || selection.Contains(value));
-            item.PropertyChanged += OnValueChanged;
-            _values.Add(item);
+            var item = new FilterValueViewModel(value, _selection == null || _selection.Contains(value), label?.Invoke(value));
+            item.PropertyChanged += OnItemChanged; _values.Add(item);
         }
-
-        UpdateVisibleValues();
-        OnPropertyChanged(nameof(Summary));
+        // Keep an explicit selection if all selected values disappear on reload.
+        UpdateVisible();
     }
-
-    partial void OnSearchTextChanged(string value) => UpdateVisibleValues();
-
-    private void UpdateVisibleValues()
-    {
-        var search = (SearchText ?? "").Trim();
-        VisibleValues.Clear();
-        foreach (var item in _values.Where(value =>
-                     value.Label.Contains(search, StringComparison.OrdinalIgnoreCase)))
-            VisibleValues.Add(item);
-    }
-
-    private void OnValueChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (!_updating && e.PropertyName == nameof(FilterValueViewModel.IsSelected))
-            NotifySelectionChanged();
-    }
-
-    private void NotifySelectionChanged()
-    {
-        OnPropertyChanged(nameof(Summary));
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    // Команды действуют на весь фильтр, включая скрытые поиском значения.
-    [RelayCommand]
-    private void SelectAll() => SetSelected(_values, true);
-
-    [RelayCommand]
-    private void ClearAll() => SetSelected(_values, false);
-
-    private void SetSelected(IEnumerable<FilterValueViewModel> values, bool selected)
-    {
-        _updating = true;
-        try
-        {
-            foreach (var value in values)
-                value.IsSelected = selected;
-        }
-        finally { _updating = false; }
-        NotifySelectionChanged();
-    }
-
-    [RelayCommand]
-    public void Reset()
+    public void BeginEdit()
     {
         SearchText = "";
-        SetSelected(_values, true);
+        foreach (var item in _values) item.IsSelected = _selection == null || _selection.Contains(item.Value);
+        UpdateVisible();
+    }
+    public void Apply()
+    {
+        var selected = VisibleValues.Where(v => v.IsSelected).Select(v => v.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _selection = _values.All(v => selected.Contains(v.Value)) ? null : selected;
+        NotifyApplied();
+    }
+    public void RestoreSelection(HashSet<string>? selection)
+    { _selection = selection == null ? null : new(selection, StringComparer.OrdinalIgnoreCase); BeginEdit(); NotifyApplied(); }
+    public void Reset() => RestoreSelection(null);
+    private void NotifyApplied()
+    { OnPropertyChanged(nameof(IsActive)); SelectionChanged?.Invoke(this, EventArgs.Empty); }
+    partial void OnSearchTextChanged(string value)
+    {
+        UpdateVisible();
+        if (!string.IsNullOrWhiteSpace(value)) AllVisibleSelected = true;
+    }
+    private void OnItemChanged(object? sender, PropertyChangedEventArgs e)
+    { if (!_updating && e.PropertyName == nameof(FilterValueViewModel.IsSelected)) OnPropertyChanged(nameof(AllVisibleSelected)); }
+    private void UpdateVisible()
+    {
+        var query = SearchText.Trim(); VisibleValues.Clear();
+        foreach (var item in _values.Where(v => v.Label.Contains(query, StringComparison.OrdinalIgnoreCase))) VisibleValues.Add(item);
+        OnPropertyChanged(nameof(AllVisibleSelected));
     }
 }

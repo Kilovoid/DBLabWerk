@@ -64,16 +64,10 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty] private bool _isBlinking;
 
-        public MultiSelectFilterViewModel RegionFilter { get; } = new("Федеральный округ");
-        public MultiSelectFilterViewModel OblFilter { get; } = new("Субъект федерации");
-        public MultiSelectFilterViewModel CityFilter { get; } = new("Город");
-        public MultiSelectFilterViewModel GrntiFilter { get; } = new("Рубрика ГРНТИ");
-        public MultiSelectFilterViewModel ExhitypeFilter { get; } = new("Наличие экспоната");
-        public MultiSelectFilterViewModel TypeFilter { get; } = new("Признак формы");
+        public ProjectFiltersViewModel ProjectFilters { get; } = new();
         private bool _updatingFilters;
-
-        private IEnumerable<MultiSelectFilterViewModel> Filters =>
-            new[] { RegionFilter, OblFilter, CityFilter, GrntiFilter, ExhitypeFilter, TypeFilter };
+        public event Action<string, long>? NavigateToRecordRequested;
+        public event Action<string>? NavigateToGroupRequested;
 
         [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
 
@@ -107,11 +101,45 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty] private ObservableCollection<NirGroup> _nirGroups = new();
         [ObservableProperty] private ObservableCollection<NirGroupEntry> _nirGroupRows = new();
+        [ObservableProperty] private string _nirGroupSearch = "";
+        [ObservableProperty] private string _nirGroupCommentSearch = "";
+        [ObservableProperty] private bool _isEditingNirGroup;
+        partial void OnNirGroupCommentSearchChanged(string value) => FilterNirGroups();
+        private bool MatchesGroupSearch(NirGroup group)
+        {
+            var name = (NirGroupSearch ?? "").Trim();
+            var comment = (NirGroupCommentSearch ?? "").Trim();
+            return (name.Length == 0 || group.Code.Contains(name, StringComparison.OrdinalIgnoreCase))
+                && (comment.Length == 0 || group.Comment.Contains(comment, StringComparison.OrdinalIgnoreCase));
+        }
+        public bool HasNirGroupComment => !string.IsNullOrWhiteSpace(SelectedNirGroup?.Comment);
+        [ObservableProperty] private ObservableCollection<NirGroup> _filteredNirGroups = new();
+        [ObservableProperty] private string _groupRubrics = "Рубрики: —";
+        [ObservableProperty] private string _groupRegions = "Регионы: —";
+        [ObservableProperty] private string _groupDistricts = "Федеральные округа: —";
+        partial void OnNirGroupSearchChanged(string value) => FilterNirGroups();
+        private string? _preferredNirGroupCode;
+        private void FilterNirGroups()
+        {
+            var code = SelectedNirGroup?.Code ?? _preferredNirGroupCode;
+            var matches = NirGroups.Where(MatchesGroupSearch).ToList();
+            FilteredNirGroups = new ObservableCollection<NirGroup>(matches);
+            SelectedNirGroup = matches.FirstOrDefault(g => g.Code == code);
+        }
+        [ObservableProperty] private string _newNirGroupComment = "";
+        [ObservableProperty] private string _editedNirGroupName = "";
+        [ObservableProperty] private string _editedNirGroupComment = "";
+        public bool HasSelectedNirGroup => SelectedNirGroup != null;
         [ObservableProperty] private string _newNirGroupName = "";
         [ObservableProperty] private string _nirGroupMessage = "";
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(DeleteNirGroupCommand))]
+        [NotifyCanExecuteChangedFor(nameof(BeginNirGroupEditCommand))]
+        [NotifyCanExecuteChangedFor(nameof(SaveNirGroupCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ResetNirGroupEditCommand))]
+        [NotifyPropertyChangedFor(nameof(HasSelectedNirGroup))]
+        [NotifyPropertyChangedFor(nameof(HasNirGroupComment))]
         private NirGroup? _selectedNirGroup;
 
         [ObservableProperty]
@@ -131,7 +159,48 @@ namespace SQLWerk.ViewModels
         private bool CanDeleteFullExhibits() => SelectedFullRows.Count > 0;
         private bool CanRemoveFromNirGroup() => SelectedGroupRows.Count > 0;
 
-        partial void OnSelectedNirGroupChanged(NirGroup? value) => RefreshNirGroup();
+        partial void OnSelectedNirGroupChanged(NirGroup? value)
+        {
+            if (value != null) _preferredNirGroupCode = value.Code;
+            ResetNirGroupEdit();
+            NirGroupMessage = "";
+            RefreshNirGroup();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanDeleteNirGroup))]
+        private void BeginNirGroupEdit()
+        {
+            ResetNirGroupEdit();
+            NirGroupMessage = "";
+            IsEditingNirGroup = true;
+        }
+
+        [RelayCommand(CanExecute = nameof(CanDeleteNirGroup))]
+        private void ResetNirGroupEdit()
+        {
+            IsEditingNirGroup = false;
+            EditedNirGroupName = SelectedNirGroup?.Code ?? "";
+            EditedNirGroupComment = SelectedNirGroup?.Comment ?? "";
+        }
+
+        [RelayCommand(CanExecute = nameof(CanDeleteNirGroup))]
+        private void SaveNirGroup()
+        {
+            if (SelectedNirGroup is not { } group) return;
+            var name = (EditedNirGroupName ?? "").Trim();
+            if (name.Length == 0) { NirGroupMessage = "Введите название группы."; return; }
+            if (NirGroups.Any(g => g.Code != group.Code && string.Equals(g.Code, name, StringComparison.Ordinal)))
+            { NirGroupMessage = "Группа с таким названием уже существует."; return; }
+            try
+            {
+                _nirGroupRepo.UpdateGroup(group.Code, name, EditedNirGroupComment);
+                NirGroupSearch = "";
+                NirGroupCommentSearch = "";
+                ReloadNirGroups(name);
+                NirGroupMessage = "Группа сохранена.";
+            }
+            catch (Exception ex) { NirGroupMessage = "Не удалось сохранить группу: " + ex.Message; }
+        }
 
         [RelayCommand]
         private void ShowNirGroup()
@@ -147,8 +216,11 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         private void CreateNirGroup()
         {
-            if (TryCreateNirGroup(NewNirGroupName, out var message))
+            if (TryCreateNirGroup(NewNirGroupName, NewNirGroupComment, out var message))
+            {
                 NewNirGroupName = "";
+                NewNirGroupComment = "";
+            }
             NirGroupMessage = message;
         }
 
@@ -167,6 +239,7 @@ namespace SQLWerk.ViewModels
                 if (!confirmed) return;
 
                 bool deleted = _nirGroupRepo.DeleteGroup(group.Code);
+                _preferredNirGroupCode = null;
                 SelectedNirGroup = null;
                 ReloadNirGroups();
                 Status = NirGroupMessage = deleted
@@ -180,7 +253,9 @@ namespace SQLWerk.ViewModels
         }
 
         // Один путь проверки и сохранения для раздела групп и диалога «Новая…».
-        public bool TryCreateNirGroup(string name, out string message)
+        public bool TryCreateNirGroup(string name, out string message) => TryCreateNirGroup(name, "", out message);
+
+        public bool TryCreateNirGroup(string name, string comment, out string message)
         {
             var code = (name ?? "").Trim();
             if (code.Length == 0)
@@ -195,9 +270,12 @@ namespace SQLWerk.ViewModels
             }
             try
             {
-                _nirGroupRepo.CreateGroup(code);
+                _nirGroupRepo.CreateGroup(code, comment);
+                NirGroupSearch = "";
+                NirGroupCommentSearch = "";
                 ReloadNirGroups(code);
                 message = $"Группа «{code}» создана.";
+                NavigateToGroupRequested?.Invoke(code);
                 return true;
             }
             catch (Exception ex)
@@ -231,7 +309,7 @@ namespace SQLWerk.ViewModels
                 var codes = selected.Distinct(StringComparer.Ordinal).ToArray();
                 int added = _nirGroupRepo.AddMembers(codes, ids);
                 ReloadNirGroups();
-                Status = NirGroupMessage = $"";
+                Status = NirGroupMessage = $"Добавлено в группы: {added}.";
             }
             catch (Exception ex) { Status = NirGroupMessage = "Ошибка добавления: " + ex.Message; }
         }
@@ -277,10 +355,12 @@ namespace SQLWerk.ViewModels
 
         private void ReloadNirGroups(string? preferredCode = null)
         {
-            var code = preferredCode ?? SelectedNirGroup?.Code;
+            var code = preferredCode ?? SelectedNirGroup?.Code ?? _preferredNirGroupCode;
             _nirGroupRepo.EnsureCreated();
             NirGroups = new ObservableCollection<NirGroup>(_nirGroupRepo.GetGroups());
-            SelectedNirGroup = NirGroups.FirstOrDefault(group => group.Code == code);
+            _preferredNirGroupCode = code;
+            FilteredNirGroups = new ObservableCollection<NirGroup>(NirGroups.Where(MatchesGroupSearch));
+            SelectedNirGroup = FilteredNirGroups.FirstOrDefault(group => group.Code == code);
             RefreshNirGroup();
         }
 
@@ -298,12 +378,26 @@ namespace SQLWerk.ViewModels
                     .Where(row => ids.Contains(row.Id)).DistinctBy(row => row.Id)
                     .Select(row => new NirGroupEntry { GroupCode = group.Code, Exhibit = row }));
             }
+            var entries = NirGroupRows.Select(r => r.Exhibit).ToList();
+            var rubricNames = Grnti.GroupBy(g => g.Codrub ?? "").ToDictionary(g => g.Key, g => g.First().Rubrika);
+            var rubrics = entries.SelectMany(r => GetMainRubrics(r.Grnti)).Distinct().OrderBy(c => c)
+                .Select(c => rubricNames.TryGetValue(c, out var name) ? $"{c} — {name}" : c);
+            GroupRubrics = "Рубрики: " + JoinSummary(rubrics);
+            GroupRegions = "Регионы: " + JoinSummary(entries.Select(r => string.IsNullOrWhiteSpace(r.OblName) ? r.Obl : r.OblName));
+            GroupDistricts = "Федеральные округа: " + JoinSummary(entries.Select(r => r.Region));
             if (ShowNirGroups)
             {
                 RowCount = NirGroupRows.Count;
                 Status = SelectedNirGroup is null ? "Выберите или создайте группу НИР."
                     : $"Группа «{SelectedNirGroup.Code}»: {RowCount} строк";
             }
+        }
+
+        private static string JoinSummary(IEnumerable<string?> values)
+        {
+            var result = values.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(v => v).ToArray();
+            return result.Length == 0 ? "—" : string.Join("; ", result);
         }
 
         public event EventHandler? ShowLogRequested;
@@ -319,7 +413,7 @@ namespace SQLWerk.ViewModels
             if (ShowAll)
             {
                 RowCount = FilteredFull.Count;
-                Status = $"Вся информация (фильтр): {RowCount} строк";
+                Status = $"Вся информация: {RowCount} строк";
             }
         }
 
@@ -332,25 +426,9 @@ namespace SQLWerk.ViewModels
 
         private void ApplyFilters()
         {
-            var regions = RegionFilter.GetSelection();
-            var oblasts = OblFilter.GetSelection();
-            var cities = CityFilter.GetSelection();
-            var rubrics = GrntiFilter.GetSelection();
-            var exhibitTypes = ExhitypeFilter.GetSelection();
-            var types = TypeFilter.GetSelection();
-
-            static bool Matches(HashSet<string>? selected, string? value) =>
-                selected == null || selected.Contains((value ?? "").Trim());
-
-            FilteredFull = new ObservableCollection<FullModel>(FullTable.Where(row =>
-                Matches(regions, row.Region)
-                && Matches(oblasts, row.OblName)
-                && Matches(cities, row.City)
-                && Matches(exhibitTypes, row.Exhitype)
-                && Matches(types, row.Type)
-                && (rubrics == null || GetMainRubrics(row.Grnti)
-                    .DefaultIfEmpty("").Any(rubrics.Contains))));
+            FilteredFull = new ObservableCollection<FullModel>(FullTable.Where(ProjectFilters.CreatePredicate()));
         }
+
 
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
@@ -381,7 +459,7 @@ namespace SQLWerk.ViewModels
             _batchDelete = batchDelete;
             _nirGroupRepo = nirGroupRepo;
 
-            foreach (var filter in Filters)
+            foreach (var filter in ProjectFilters.MultiFilters)
                 filter.SelectionChanged += (_, _) => ApplyFiltersAndRefreshStatus();
 
 
@@ -451,6 +529,8 @@ namespace SQLWerk.ViewModels
             Vuzes = new ObservableCollection<VuzTableRow>(_vuzRepo.GetAll());
             Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
+            ExhibitEditViewModel.VuzNames = Vuzes.GroupBy(v => v.Codvuz).ToDictionary(g => g.Key,
+                g => (string.IsNullOrWhiteSpace(g.First().Z1Full) ? g.First().Z1 : g.First().Z1Full) ?? g.First().Z2 ?? "Без названия");
             ExhibitEditViewModel.VuzCodes = Vuzes
                 .Select(v => v.Codvuz)
                 .Where(c => c > 0)
@@ -575,26 +655,13 @@ namespace SQLWerk.ViewModels
 
 
 
-        private void RefreshFilterOptions()
-        {
-            RegionFilter.SetValues(FullTable.Select(row => row.Region));
-            OblFilter.SetValues(FullTable.Select(row => row.OblName));
-            CityFilter.SetValues(FullTable.Select(row => row.City));
-            GrntiFilter.SetValues(FullTable.SelectMany(row =>
-                GetMainRubrics(row.Grnti).DefaultIfEmpty("")));
-            ExhitypeFilter.SetValues(FullTable.Select(row => row.Exhitype));
-            TypeFilter.SetValues(FullTable.Select(row => row.Type));
-        }
+        private void RefreshFilterOptions() => ProjectFilters.SetData(FullTable, Vuzes);
 
         [RelayCommand]
         private void ResetFilters()
         {
             _updatingFilters = true;
-            try
-            {
-                foreach (var filter in Filters)
-                    filter.Reset();
-            }
+            try { ProjectFilters.Reset(); }
             finally { _updatingFilters = false; }
             ApplyFiltersAndRefreshStatus();
         }
@@ -762,6 +829,7 @@ namespace SQLWerk.ViewModels
             _grntiRepo.Add(result);
             ReloadFromDatabase();
             SelectGrntiCommand.Execute(null);
+            NavigateToRecordRequested?.Invoke("Grnti", result.Id);
             Status = $"Рубрика добавлена: {result.Codrub} — {result.Rubrika}";
         }
 
@@ -802,6 +870,7 @@ namespace SQLWerk.ViewModels
             _vuzRepo.Add(result);
             ReloadFromDatabase();
             SelectVuzCommand.Execute(null);
+            NavigateToRecordRequested?.Invoke("Vuz", result.Id);
             Status = $"ВУЗ добавлен: {result.Codvuz}";
         }
 
@@ -841,6 +910,7 @@ namespace SQLWerk.ViewModels
             _exhibitRepo.Add(result);
             ReloadFromDatabase();
             SelectExhibitsCommand.Execute(null);
+            NavigateToRecordRequested?.Invoke("Exhibit", result.Id);
             Status = $"Выставка с регистрационным номером {result.Regnumber} добавлена";
         }
 

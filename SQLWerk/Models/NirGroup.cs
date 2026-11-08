@@ -4,6 +4,7 @@ public class NirGroup
 {
     // Код и название — одно пользовательское значение, например «Робототехника».
     public string Code { get; set; } = "";
+    public string Comment { get; set; } = "";
 }
 
 public class NirGroupEntry

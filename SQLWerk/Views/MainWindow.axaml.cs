@@ -1,7 +1,10 @@
 using System;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using SQLWerk.Models;
 using SQLWerk.ViewModels;
@@ -11,22 +14,135 @@ namespace SQLWerk.Views;
 public partial class MainWindow : Window
 {
     private LogWindow? _logWindow;
+    private MainWindowViewModel? _boundVm;
+    private bool _selectingGroupSuggestion;
+    private Action? _pendingNavigation;
+    private readonly HashSet<Window> _navigationDialogs = new();
 
     public MainWindow() => InitializeComponent();
 
     protected override void OnDataContextChanged(EventArgs e)
     {
+        if (_boundVm != null)
+        {
+            _boundVm.ShowLogRequested -= OnShowLog;
+            _boundVm.NavigateToRecordRequested -= OnNavigateToRecord;
+            _boundVm.NavigateToGroupRequested -= OnNavigateToGroup;
+        }
+        _pendingNavigation = null;
+        _boundVm = null;
         base.OnDataContextChanged(e);
 
         if (DataContext is MainWindowViewModel vm)
         {
+            _boundVm = vm;
             vm.ShowLogRequested += OnShowLog;
+            vm.NavigateToRecordRequested += OnNavigateToRecord;
+            vm.NavigateToGroupRequested += OnNavigateToGroup;
             vm.SelectNirGroupsHandler = ShowNirGroupPickerAsync;
             vm.GrntiEditHandler = ShowGrntiEditAsync;
             vm.ConfirmHandler = ShowConfirmAsync;
             vm.VuzEditHandler = ShowVuzEditAsync;
             vm.ExhibitEditHandler = ShowExhibitEditAsync;
         }
+    }
+
+    private void QueueNavigation(Action navigate)
+    {
+        _pendingNavigation = navigate;
+        TryRunNavigation();
+    }
+
+    private void TryRunNavigation()
+    {
+        if (_pendingNavigation == null) return;
+        // Let creation/selection dialogs finish before focusing the main UI.
+        var dialogs = OwnedWindows.Where(w => w.IsVisible && w is not LogWindow).ToArray();
+        if (dialogs.Length != 0)
+        {
+            foreach (var dialog in dialogs)
+                if (_navigationDialogs.Add(dialog)) dialog.Closed += OnNavigationDialogClosed;
+            return;
+        }
+        var navigate = _pendingNavigation;
+        _pendingNavigation = null;
+        Dispatcher.UIThread.Post(navigate, DispatcherPriority.Background);
+    }
+
+    private void OnNavigationDialogClosed(object? sender, EventArgs e)
+    {
+        if (sender is Window dialog)
+        {
+            dialog.Closed -= OnNavigationDialogClosed;
+            _navigationDialogs.Remove(dialog);
+        }
+        Dispatcher.UIThread.Post(TryRunNavigation, DispatcherPriority.Background);
+    }
+
+    private void OnNavigateToRecord(string table, long id)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        QueueNavigation(() =>
+        {
+            if (!ReferenceEquals(DataContext, vm)) return;
+            var status = vm.Status;
+            DataGrid? grid = null;
+            object? item = null;
+            switch (table)
+            {
+                case "Exhibit":
+                    vm.SelectExhibits();
+                    grid = this.FindControl<DataGrid>("ExhibitsGrid");
+                    item = vm.Exhibits.FirstOrDefault(r => r.Id == id);
+                    break;
+                case "Vuz":
+                    vm.SelectVuz();
+                    grid = this.FindControl<DataGrid>("VuzGrid");
+                    item = vm.Vuzes.FirstOrDefault(r => r.Id == id);
+                    break;
+                case "Grnti":
+                    vm.SelectGrnti();
+                    grid = this.FindControl<DataGrid>("GrntiGrid");
+                    item = vm.Grnti.FirstOrDefault(r => r.Id == id);
+                    break;
+            }
+            vm.Status = status;
+            if (grid == null || item == null) return;
+            // Realize the correct table before selecting a row in a sorted/virtualized grid.
+            grid.UpdateLayout();
+            grid.SelectedItems.Clear();
+            grid.SelectedItem = item;
+            grid.ScrollIntoView(item, grid.Columns.FirstOrDefault(c => c.IsVisible));
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!ReferenceEquals(DataContext, vm) || !grid.IsEffectivelyVisible) return;
+                grid.UpdateLayout();
+                grid.SelectedItem = item;
+                grid.Focus();
+                grid.ScrollIntoView(item, grid.Columns.FirstOrDefault(c => c.IsVisible));
+            }, DispatcherPriority.Loaded);
+        });
+    }
+
+    private void OnNavigateToGroup(string code)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        QueueNavigation(() =>
+        {
+            if (!ReferenceEquals(DataContext, vm)) return;
+            vm.NirGroupSearch = "";
+            vm.NirGroupCommentSearch = "";
+            vm.ShowNirGroupCommand.Execute(null);
+            vm.SelectedNirGroup = vm.NirGroups.FirstOrDefault(g => g.Code == code);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!ReferenceEquals(DataContext, vm) || !vm.ShowNirGroups) return;
+                this.FindControl<ScrollViewer>("GroupPageScroll")?.ScrollToHome();
+                var selector = this.FindControl<ComboBox>("GroupSelector");
+                selector?.Focus();
+                this.FindControl<Control>("SelectedGroupHeader")?.BringIntoView();
+            }, DispatcherPriority.Loaded);
+        });
     }
 
     private void OnGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -50,6 +166,35 @@ public partial class MainWindow : Window
                 vm.SelectedGrntiRows = grid.SelectedItems.OfType<GrntiTableRow>().ToList();
                 break;
         }
+    }
+
+    private void OnGroupSuggestionSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_selectingGroupSuggestion || DataContext is not MainWindowViewModel vm) return;
+        var group = e.AddedItems.OfType<NirGroup>().FirstOrDefault();
+        if (group == null) return;
+        _selectingGroupSuggestion = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                // Complete the AutoCompleteBox text update before selecting the group.
+                vm.NirGroupSearch = "";
+                vm.NirGroupCommentSearch = "";
+                vm.SelectedNirGroup = vm.NirGroups.FirstOrDefault(g => g.Code == group.Code);
+                if (sender is AutoCompleteBox input) input.IsDropDownOpen = false;
+            }
+            finally { _selectingGroupSuggestion = false; }
+        }, DispatcherPriority.Background);
+    }
+
+    private async void OnNewNirGroupClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var button = sender as Button;
+        if (button != null) button.IsEnabled = false;
+        try { await new NewNirGroupWindow(vm).ShowDialog<string?>(this); }
+        finally { if (button != null) button.IsEnabled = true; }
     }
 
     private async Task<string[]?> ShowNirGroupPickerAsync()

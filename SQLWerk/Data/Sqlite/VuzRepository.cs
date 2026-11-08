@@ -123,6 +123,9 @@ namespace SQLWerk.Data.Sqlite
                .AddParam("$on", row.OblName).AddParam("$gv", row.GrVed)
                .AddParam("$p", row.Prof);
             cmd.ExecuteNonQuery();
+            cmd.Parameters.Clear();
+            cmd.CommandText = "SELECT last_insert_rowid();";
+            row.Id = Convert.ToInt64(cmd.ExecuteScalar());
         }
 
         public void Update(VuzTableRow row)

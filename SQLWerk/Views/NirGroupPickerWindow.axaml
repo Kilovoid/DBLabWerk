@@ -26,7 +26,7 @@
                     BorderThickness="1" CornerRadius="4" Padding="10"
                     KeyDown="OnPopupKeyDown">
                 <StackPanel Spacing="8">
-                    <TextBox x:Name="GroupSearch" PlaceholderText="Поиск по подстроке..."
+                    <TextBox x:Name="GroupSearch" PlaceholderText="Поиск по названию и комментарию"
                              TextChanged="OnSearchChanged"/>
                     <TextBlock x:Name="EmptyHint" Text="Групп пока нет. Выберите «Новая…»."
                                TextWrapping="Wrap" IsVisible="False"/>

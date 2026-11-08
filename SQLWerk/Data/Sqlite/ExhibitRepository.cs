@@ -118,6 +118,9 @@ namespace SQLWerk.Data.Sqlite
                .AddParam("$e", row.Exhitype).AddParam("$v", row.Vystavki)
                .AddParam("$ex", row.Exponat);
             cmd.ExecuteNonQuery();
+            cmd.Parameters.Clear();
+            cmd.CommandText = "SELECT last_insert_rowid();";
+            row.Id = Convert.ToInt64(cmd.ExecuteScalar());
         }
 
         public void Update(ExhibitTableRow row)

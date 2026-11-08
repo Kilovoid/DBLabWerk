@@ -1,0 +1,10 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SQLWerk.ViewModels" xmlns:views="using:SQLWerk.Views"
+             x:Class="SQLWerk.Views.ProjectFiltersWindow" x:DataType="vm:ProjectFiltersViewModel">
+    <ItemsControl ItemsSource="{Binding MultiFilters}">
+        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:MultiSelectFilterViewModel">
+            <views:MultiSelectFilterView Width="150" Margin="0,0,5,5"/>
+        </DataTemplate></ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

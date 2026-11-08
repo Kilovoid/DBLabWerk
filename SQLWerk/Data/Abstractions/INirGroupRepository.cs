@@ -7,7 +7,8 @@ public interface INirGroupRepository
 {
     void EnsureCreated();
     List<NirGroup> GetGroups();
-    void CreateGroup(string code);
+    void CreateGroup(string code, string comment = "");
+    void UpdateGroup(string originalCode, string code, string comment);
     bool DeleteGroup(string groupCode);
     List<long> GetExhibitIds(string groupCode);
     int AddMembers(string groupCode, IEnumerable<long> exhibitIds);

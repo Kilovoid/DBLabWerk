@@ -108,9 +108,10 @@ SQLWerk/
     MainWindow.axaml.cs
     MultiSelectFilterView.axaml
     MultiSelectFilterView.axaml.cs
+    NewNirGroupWindow.axaml
+    NewNirGroupWindow.axaml.cs
+    NirGroupPickerWindow.axaml
     NirGroupPickerWindow.cs
-    NirGroupWindow.axaml
-    NirGroupWindow.axaml.cs
     VuzEditWindow.axaml
     VuzEditWindow.axaml.cs
   App.axaml
@@ -145,6 +146,84 @@ public interface IBatchDeleteService
 }
 </file>
 
+<file path="SQLWerk/Data/Abstractions/IConnectionFactory.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    internal interface IConnectionFactory
+    {
+        SqliteConnection Create();
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IDataBaseMaintenanceService.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IDataBaseMaintenanceService
+    {
+        void ReloadDataBase();
+        void RecreateSchema();
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IExcelReader.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IExcelReader
+    {
+        List<T> Parse<T>(string filePath) where T : ITableRow, new();
+        string[] GetHeaders(string filePath);
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IFilePicker.cs">
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IFilePicker
+    {
+        Task<string[]?> PickFilesAsync(string title, int minCount);
+    }
+}
+</file>
+
+<file path="SQLWerk/Data/Abstractions/IFullDataRepository.cs">
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Abstractions
+{
+    public interface IFullDataRepository
+    {
+        void EnsureCreated();
+        List<FullModel> GetAll();
+    }
+}
+</file>
+
 <file path="SQLWerk/Data/Abstractions/INirGroupRepository.cs">
 using SQLWerk.Models;
 using System.Collections.Generic;
@@ -155,14 +234,36 @@ public interface INirGroupRepository
 {
     void EnsureCreated();
     List<NirGroup> GetGroups();
-    long CreateGroup(string name);
-    List<long> GetExhibitIds(long groupId);
-    int AddMembers(long groupId, IEnumerable<long> exhibitIds);
-    int RemoveMembers(long groupId, IEnumerable<long> exhibitIds);
+    void CreateGroup(string code);
+    bool DeleteGroup(string groupCode);
+    List<long> GetExhibitIds(string groupCode);
+    int AddMembers(string groupCode, IEnumerable<long> exhibitIds);
+    int AddMembers(IEnumerable<string> groupCodes, IEnumerable<long> exhibitIds);
+    int RemoveMembers(string groupCode, IEnumerable<long> exhibitIds);
+}
+</file>
+
+<file path="SQLWerk/Data/Extensions/SqliteCommandExtensions.cs">
+using Microsoft.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SQLWerk.Data.Extensions
+{
+    public static class SqliteCommandExtensions // Класс для человеческого написания команд добавления и тд потому что у нас много полей
+    {
+        public static SqliteCommand AddParam (this SqliteCommand cmd, string name, object? value)
+        {
+            cmd.Parameters.Add(new SqliteParameter(name, value ?? DBNull.Value)); // Чтобы было не C# null, a DBNull
+            return cmd;
+        }
+    }
 }
 </file>
 
 <file path="SQLWerk/Data/Sqlite/NirGroupRepository.cs">
+using Microsoft.Data.Sqlite;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
 using System;
@@ -180,22 +281,69 @@ internal sealed class NirGroupRepository : INirGroupRepository
     {
         using var connection = _factory.Create();
         connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        // Однократный переход со старого числового Id на название группы.
+        bool legacy = false;
+        using (var info = connection.CreateCommand())
+        {
+            info.Transaction = transaction;
+            info.CommandText = "PRAGMA table_info(NirGroups);";
+            using var reader = info.ExecuteReader();
+            while (reader.Read())
+                if (reader.GetString(1) == "Id") legacy = true;
+        }
+
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        if (legacy)
+        {
+            command.CommandText = """
+                CREATE TABLE NirGroups_New (
+                    Code TEXT NOT NULL PRIMARY KEY CHECK(length(trim(Code)) > 0)
+                );
+                INSERT INTO NirGroups_New(Code)
+                    SELECT Name FROM NirGroups AS groups
+                    WHERE NOT (groups.Id=1 AND groups.Name='Группа НИР'
+                        AND NOT EXISTS (SELECT 1 FROM NirGroupMembers WHERE GroupId=groups.Id));
+                CREATE TABLE NirGroupMembers_New (
+                    GroupCode TEXT NOT NULL,
+                    ExhibitId INTEGER NOT NULL,
+                    PRIMARY KEY (GroupCode, ExhibitId),
+                    FOREIGN KEY (GroupCode) REFERENCES NirGroups_New(Code) ON DELETE CASCADE ON UPDATE CASCADE,
+                    FOREIGN KEY (ExhibitId) REFERENCES Exhibits(Id) ON DELETE CASCADE
+                );
+                INSERT INTO NirGroupMembers_New(GroupCode, ExhibitId)
+                    SELECT groups.Name, members.ExhibitId
+                    FROM NirGroupMembers AS members
+                    JOIN NirGroups AS groups ON groups.Id = members.GroupId;
+                DROP TABLE NirGroupMembers;
+                DROP TABLE NirGroups;
+                ALTER TABLE NirGroups_New RENAME TO NirGroups;
+                ALTER TABLE NirGroupMembers_New RENAME TO NirGroupMembers;
+                """;
+            command.ExecuteNonQuery();
+        }
+
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS NirGroups (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK(length(trim(Name)) > 0)
+                Code TEXT NOT NULL PRIMARY KEY CHECK(length(trim(Code)) > 0)
             );
             CREATE TABLE IF NOT EXISTS NirGroupMembers (
-                GroupId INTEGER NOT NULL,
+                GroupCode TEXT NOT NULL,
                 ExhibitId INTEGER NOT NULL,
-                PRIMARY KEY (GroupId, ExhibitId),
-                FOREIGN KEY (GroupId) REFERENCES NirGroups(Id) ON DELETE CASCADE,
+                PRIMARY KEY (GroupCode, ExhibitId),
+                FOREIGN KEY (GroupCode) REFERENCES NirGroups(Code) ON DELETE CASCADE ON UPDATE CASCADE,
                 FOREIGN KEY (ExhibitId) REFERENCES Exhibits(Id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS IX_NirGroupMembers_ExhibitId ON NirGroupMembers(ExhibitId);
             """;
         command.ExecuteNonQuery();
+        command.CommandText = "PRAGMA foreign_key_check(NirGroupMembers);";
+        using (var reader = command.ExecuteReader())
+            if (reader.Read())
+                throw new InvalidOperationException("Нарушены связи групп НИР. Изменения отменены.");
+        transaction.Commit();
     }
 
     public List<NirGroup> GetGroups()
@@ -203,65 +351,103 @@ internal sealed class NirGroupRepository : INirGroupRepository
         using var connection = _factory.Create();
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT Id, Name FROM NirGroups ORDER BY Name, Id;";
+        command.CommandText = "SELECT Code FROM NirGroups ORDER BY Code;";
         using var reader = command.ExecuteReader();
         var groups = new List<NirGroup>();
         while (reader.Read())
-            groups.Add(new NirGroup { Id = reader.GetInt64(0), Name = reader.GetString(1) });
+            groups.Add(new NirGroup { Code = reader.GetString(0) });
         return groups;
     }
 
-    public long CreateGroup(string name)
+    public void CreateGroup(string code)
     {
-        name = name.Trim();
-        if (name.Length == 0) throw new ArgumentException("Введите название группы.");
+        code = NormalizeCode(code);
         using var connection = _factory.Create();
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO NirGroups(Name) VALUES ($name); SELECT last_insert_rowid();";
-        command.Parameters.AddWithValue("$name", name);
-        return Convert.ToInt64(command.ExecuteScalar());
+        command.CommandText = "INSERT INTO NirGroups(Code) VALUES ($code);";
+        command.Parameters.AddWithValue("$code", code);
+        command.ExecuteNonQuery();
     }
 
-    public List<long> GetExhibitIds(long groupId)
+    public bool DeleteGroup(string groupCode)
     {
         using var connection = _factory.Create();
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT ExhibitId FROM NirGroupMembers WHERE GroupId=$group ORDER BY ExhibitId;";
-        command.Parameters.AddWithValue("$group", groupId);
+        command.CommandText = "DELETE FROM NirGroups WHERE Code=$code;";
+        command.Parameters.AddWithValue("$code", NormalizeCode(groupCode));
+        return command.ExecuteNonQuery() > 0;
+    }
+
+    public List<long> GetExhibitIds(string groupCode)
+    {
+        using var connection = _factory.Create();
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT ExhibitId FROM NirGroupMembers WHERE GroupCode=$group ORDER BY ExhibitId;";
+        command.Parameters.AddWithValue("$group", NormalizeCode(groupCode));
         using var reader = command.ExecuteReader();
         var ids = new List<long>();
         while (reader.Read()) ids.Add(reader.GetInt64(0));
         return ids;
     }
 
-    public int AddMembers(long groupId, IEnumerable<long> exhibitIds) =>
-        ChangeMembers(groupId, exhibitIds, true);
+    public int AddMembers(string groupCode, IEnumerable<long> exhibitIds) =>
+        ChangeMembers(new[] { groupCode }, exhibitIds, true);
 
-    public int RemoveMembers(long groupId, IEnumerable<long> exhibitIds) =>
-        ChangeMembers(groupId, exhibitIds, false);
+    public int AddMembers(IEnumerable<string> groupCodes, IEnumerable<long> exhibitIds) =>
+        ChangeMembers(groupCodes, exhibitIds, true);
 
-    private int ChangeMembers(long groupId, IEnumerable<long> ids, bool add)
+    public int RemoveMembers(string groupCode, IEnumerable<long> exhibitIds) =>
+        ChangeMembers(new[] { groupCode }, exhibitIds, false);
+
+    private int ChangeMembers(IEnumerable<string> groupCodes, IEnumerable<long> ids, bool add)
     {
+        var codes = groupCodes.Select(NormalizeCode).Distinct(StringComparer.Ordinal).ToArray();
+        var exhibitIds = ids.Distinct().ToArray();
+        if (codes.Length == 0)
+            throw new ArgumentException("Выберите хотя бы одну группу НИР.");
+
         using var connection = _factory.Create();
         connection.Open();
         using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = add
-            ? "INSERT INTO NirGroupMembers(GroupId,ExhibitId) VALUES ($group,$exhibit) ON CONFLICT(GroupId,ExhibitId) DO NOTHING;"
-            : "DELETE FROM NirGroupMembers WHERE GroupId=$group AND ExhibitId=$exhibit;";
-        command.Parameters.AddWithValue("$group", groupId);
-        var parameter = command.Parameters.Add("$exhibit", Microsoft.Data.Sqlite.SqliteType.Integer);
-        int changed = 0;
-        foreach (var id in ids.Distinct())
+
+        // Проверяем весь набор заранее. Автоматического создания групп нет.
+        command.CommandText = "SELECT COUNT(*) FROM NirGroups WHERE Code=$group;";
+        var groupParameter = command.Parameters.Add("$group", SqliteType.Text);
+        foreach (var code in codes)
         {
-            parameter.Value = id;
-            changed += command.ExecuteNonQuery();
+            groupParameter.Value = code;
+            if (Convert.ToInt32(command.ExecuteScalar()) == 0)
+                throw new InvalidOperationException($"Группа «{code}» не существует. Сначала создайте её.");
+        }
+
+        command.CommandText = add
+            ? "INSERT INTO NirGroupMembers(GroupCode,ExhibitId) VALUES ($group,$exhibit) ON CONFLICT(GroupCode,ExhibitId) DO NOTHING;"
+            : "DELETE FROM NirGroupMembers WHERE GroupCode=$group AND ExhibitId=$exhibit;";
+        var exhibitParameter = command.Parameters.Add("$exhibit", SqliteType.Integer);
+        int changed = 0;
+        foreach (var code in codes)
+        {
+            groupParameter.Value = code;
+            foreach (var id in exhibitIds)
+            {
+                exhibitParameter.Value = id;
+                changed += command.ExecuteNonQuery();
+            }
         }
         transaction.Commit();
         return changed;
+    }
+
+    private static string NormalizeCode(string code)
+    {
+        code = (code ?? "").Trim();
+        if (code.Length == 0) throw new ArgumentException("Введите название группы.");
+        return code;
     }
 }
 </file>
@@ -271,14 +457,13 @@ namespace SQLWerk.Models;
 
 public class NirGroup
 {
-    public long Id { get; set; }
-    public string Name { get; set; } = "";
+    // Код и название — одно пользовательское значение, например «Робототехника».
+    public string Code { get; set; } = "";
 }
 
 public class NirGroupEntry
 {
-    public long GroupId { get; set; }
-    public string GroupName { get; set; } = "";
+    public string GroupCode { get; set; } = "";
     public FullModel Exhibit { get; set; } = new();
 }
 </file>
@@ -395,287 +580,6 @@ internal sealed class BatchDeleteService : IBatchDeleteService
             deleted += command.ExecuteNonQuery();
         }
         return deleted;
-    }
-}
-</file>
-
-<file path="SQLWerk/Views/NirGroupPickerWindow.cs">
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using SQLWerk.Models;
-using SQLWerk.ViewModels;
-using System.Linq;
-
-namespace SQLWerk.Views;
-
-// Простое модальное окно без нового сервиса и регистрации в DI.
-public sealed class NirGroupPickerWindow : Window
-{
-    public NirGroupPickerWindow(MainWindowViewModel vm)
-    {
-        Title = "Добавить выбранные выставки в группу НИР";
-        Width = 500;
-        Height = 310;
-        CanResize = false;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-
-        var groups = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-        var name = new TextBox();
-        var message = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-        var create = new Button { Content = "Создать группу" };
-        var add = new Button { Content = "Добавить", IsDefault = true };
-        var cancel = new Button { Content = "Отмена", IsCancel = true };
-
-        void RefreshGroups()
-        {
-            var items = vm.NirGroups.Select(group => new ComboBoxItem
-            {
-                Content = $"{group.Id}: {group.Name}", Tag = group
-            }).ToList();
-            groups.ItemsSource = items;
-            groups.SelectedItem = items.FirstOrDefault(item =>
-                item.Tag is NirGroup group && group.Id == vm.SelectedNirGroup?.Id)
-                ?? items.FirstOrDefault();
-            add.IsEnabled = groups.SelectedItem != null;
-        }
-
-        groups.SelectionChanged += (_, _) => add.IsEnabled = groups.SelectedItem != null;
-        create.Click += (_, _) =>
-        {
-            vm.NewNirGroupName = name.Text ?? "";
-            vm.CreateNirGroupCommand.Execute(null);
-            RefreshGroups();
-            name.Text = vm.NewNirGroupName;
-            message.Text = vm.NirGroupMessage;
-        };
-        add.Click += (_, _) =>
-        {
-            if (groups.SelectedItem is ComboBoxItem { Tag: NirGroup group })
-                Close(group);
-        };
-        cancel.Click += (_, _) => Close();
-        RefreshGroups();
-        if (vm.NirGroups.Count == 0)
-            message.Text = "Групп пока нет. Введите название и создайте группу.";
-
-        Content = new StackPanel
-        {
-            Margin = new Thickness(16), Spacing = 10,
-            Children =
-            {
-                new TextBlock { Text = "Группа для всех выбранных выставок:" },
-                groups, new TextBlock { Text = "Создать новую группу:" }, name, create, message,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8, Children = { add, cancel }
-                }
-            }
-        };
-    }
-}
-</file>
-
-<file path="SQLWerk/Views/NirGroupWindow.axaml">
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:SQLWerk.ViewModels"
-        xmlns:models="using:SQLWerk.Models"
-        x:Class="SQLWerk.Views.NirGroupWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Width="1100" Height="550" WindowStartupLocation="CenterOwner"
-        Title="Группы НИР">
-    <Grid RowDefinitions="Auto,*" Margin="12">
-        <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBox Text="{Binding NewNirGroupName, Mode=TwoWay}" Width="220"
-                         PlaceholderText="Название новой группы"/>
-                <Button Content="Создать группу" Command="{Binding CreateNirGroupCommand}"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <TextBlock Text="{Binding NirGroupRows.Count, StringFormat='Связей с выставками: {0}'}"
-                           VerticalAlignment="Center"/>
-                <Button Content="Убрать выбранные из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
-            </StackPanel>
-            <TextBlock Text="Все группы показаны вместе. Чтобы добавить выставки, выделите строки в VIEW или «Выставки» и выберите «Добавить в группу НИР...» в меню правой кнопки мыши."
-                       TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
-        </StackPanel>
-        <DataGrid Grid.Row="1" ItemsSource="{Binding NirGroupRows}"
-                  SelectionMode="Extended" SelectionChanged="OnGroupSelectionChanged"
-                  AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="ID группы" Binding="{Binding GroupId}"/>
-                <DataGridTextColumn Header="Группа" Binding="{Binding GroupName}"/>
-                <DataGridTextColumn Header="ID выставки" Binding="{Binding Exhibit.Id}"/>
-							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Exhibit.Regnumber}" />
-							<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Exhibit.Type}" />
-							<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Exhibit.Subject}" />
-							<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Exhibit.Grnti}" />
-							<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Exhibit.Rubrika}" />
-							<DataGridTextColumn Header="Руководитель" Binding="{Binding Exhibit.Bossname}" />
-							<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Exhibit.Bosstitle}" />
-							<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhibit.Exhitype}" />
-							<DataGridTextColumn Header="Выставки" Binding="{Binding Exhibit.Vystavki}" />
-							<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exhibit.Exponat}" />
-							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Exhibit.Codvuz}" />
-							<DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Exhibit.Z2}" />
-							<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Exhibit.Z1}" />
-							<DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Exhibit.Z1Full}" />
-							<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Exhibit.Status}" />
-							<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Exhibit.Region}" />
-							<DataGridTextColumn Header="Город" Binding="{Binding Exhibit.City}" />
-							<DataGridTextColumn Header="Код региона" Binding="{Binding Exhibit.Obl}" />
-							<DataGridTextColumn Header="Регион" Binding="{Binding Exhibit.OblName}" />
-							<DataGridTextColumn Header="Статус" Binding="{Binding Exhibit.GrVed}" />
-							<DataGridTextColumn Header="Специализация" Binding="{Binding Exhibit.Prof}" />
-						</DataGrid.Columns>
-        </DataGrid>
-    </Grid>
-</Window>
-</file>
-
-<file path="SQLWerk/Views/NirGroupWindow.axaml.cs">
-using Avalonia.Controls;
-using SQLWerk.Models;
-using SQLWerk.ViewModels;
-using System.Linq;
-
-namespace SQLWerk.Views;
-
-public partial class NirGroupWindow : Window
-{
-    public NirGroupWindow() => InitializeComponent();
-
-    private void OnGroupSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel vm && sender is DataGrid grid)
-            vm.SelectedGroupRows = grid.SelectedItems.OfType<NirGroupEntry>().ToList();
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IConnectionFactory.cs">
-using Microsoft.Data.Sqlite;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    internal interface IConnectionFactory
-    {
-        SqliteConnection Create();
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IDataBaseMaintenanceService.cs">
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IDataBaseMaintenanceService
-    {
-        void ReloadDataBase();
-        void RecreateSchema();
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IExcelReader.cs">
-using Microsoft.Data.Sqlite;
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IExcelReader
-    {
-        List<T> Parse<T>(string filePath) where T : ITableRow, new();
-        string[] GetHeaders(string filePath);
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IFilePicker.cs">
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IFilePicker
-    {
-        Task<string[]?> PickFilesAsync(string title, int minCount);
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Abstractions/IFullDataRepository.cs">
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Abstractions
-{
-    public interface IFullDataRepository
-    {
-        void EnsureCreated();
-        List<FullModel> GetAll();
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Extensions/SqliteCommandExtensions.cs">
-using Microsoft.Data.Sqlite;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SQLWerk.Data.Extensions
-{
-    public static class SqliteCommandExtensions // Класс для человеческого написания команд добавления и тд потому что у нас много полей
-    {
-        public static SqliteCommand AddParam (this SqliteCommand cmd, string name, object? value)
-        {
-            cmd.Parameters.Add(new SqliteParameter(name, value ?? DBNull.Value)); // Чтобы было не C# null, a DBNull
-            return cmd;
-        }
-    }
-}
-</file>
-
-<file path="SQLWerk/Data/Sqlite/SqliteConnectionFactory.cs">
-using Microsoft.Data.Sqlite;
-using SQLWerk.Data.Abstractions;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-
-namespace SQLWerk.Data.Sqlite
-{
-    internal class SqliteConnectionFactory : IConnectionFactory
-    {
-        private readonly string _cs;
-
-        public SqliteConnectionFactory(string dbPath) =>
-            _cs = new SqliteConnectionStringBuilder
-            {
-                DataSource = Path.GetFullPath(dbPath),
-                ForeignKeys = true
-            }.ToString();
-
-        public SqliteConnection Create() => new SqliteConnection(_cs);
     }
 }
 </file>
@@ -1069,148 +973,6 @@ public partial class ConfirmViewModel : ObservableObject
 }
 </file>
 
-<file path="SQLWerk/ViewModels/MultiSelectFilterViewModel.cs">
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Linq;
-
-namespace SQLWerk.ViewModels;
-
-public partial class FilterValueViewModel : ObservableObject
-{
-    public string Value { get; }
-    public string Label => Value.Length == 0 ? "(Пусто)" : Value;
-
-    [ObservableProperty] private bool _isSelected;
-
-    public FilterValueViewModel(string value, bool isSelected)
-    {
-        Value = value;
-        _isSelected = isSelected;
-    }
-}
-
-public partial class MultiSelectFilterViewModel : ObservableObject
-{
-    private readonly List<FilterValueViewModel> _values = new();
-    private bool _updating;
-
-    public string Title { get; }
-    public ObservableCollection<FilterValueViewModel> VisibleValues { get; } = new();
-    public event EventHandler? SelectionChanged;
-
-    [ObservableProperty] private string _searchText = "";
-
-    public string Summary
-    {
-        get
-        {
-            var selected = _values.Where(value => value.IsSelected).ToList();
-            if (selected.Count == _values.Count) return "Все значения";
-            if (selected.Count == 0) return "Ничего не выбрано";
-            return selected.Count <= 2
-                ? string.Join(", ", selected.Select(value => value.Label))
-                : $"Выбрано: {selected.Count} из {_values.Count}";
-        }
-    }
-
-    public MultiSelectFilterViewModel(string title) => Title = title;
-
-    // null означает отсутствие ограничения. Пустой набор — не выбрано ничего.
-    public HashSet<string>? GetSelection() => _values.All(value => value.IsSelected)
-        ? null
-        : _values.Where(value => value.IsSelected)
-            .Select(value => value.Value)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-    public void SetValues(IEnumerable<string?> values)
-    {
-        var selection = GetSelection();
-        foreach (var item in _values)
-            item.PropertyChanged -= OnValueChanged;
-        _values.Clear();
-
-        foreach (var value in values.Select(value => (value ?? "").Trim())
-                     .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value))
-        {
-            var item = new FilterValueViewModel(value, selection == null || selection.Contains(value));
-            item.PropertyChanged += OnValueChanged;
-            _values.Add(item);
-        }
-
-        UpdateVisibleValues();
-        OnPropertyChanged(nameof(Summary));
-    }
-
-    partial void OnSearchTextChanged(string value) => UpdateVisibleValues();
-
-    private void UpdateVisibleValues()
-    {
-        var search = (SearchText ?? "").Trim();
-        VisibleValues.Clear();
-        foreach (var item in _values.Where(value =>
-                     value.Label.Contains(search, StringComparison.OrdinalIgnoreCase)))
-            VisibleValues.Add(item);
-    }
-
-    private void OnValueChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (!_updating && e.PropertyName == nameof(FilterValueViewModel.IsSelected))
-            NotifySelectionChanged();
-    }
-
-    private void NotifySelectionChanged()
-    {
-        OnPropertyChanged(nameof(Summary));
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    // При поиске меняем только показанные варианты, скрытые галочки сохраняем.
-    [RelayCommand]
-    private void SelectVisible() => SetSelected(VisibleValues, true);
-
-    [RelayCommand]
-    private void ClearVisible() => SetSelected(VisibleValues, false);
-
-    [RelayCommand]
-    private void SelectOnlyVisible()
-    {
-        var visible = VisibleValues.ToHashSet();
-        _updating = true;
-        try
-        {
-            foreach (var value in _values)
-                value.IsSelected = visible.Contains(value);
-        }
-        finally { _updating = false; }
-        NotifySelectionChanged();
-    }
-
-    private void SetSelected(IEnumerable<FilterValueViewModel> values, bool selected)
-    {
-        _updating = true;
-        try
-        {
-            foreach (var value in values)
-                value.IsSelected = selected;
-        }
-        finally { _updating = false; }
-        NotifySelectionChanged();
-    }
-
-    [RelayCommand]
-    public void Reset()
-    {
-        SearchText = "";
-        SetSelected(_values, true);
-    }
-}
-</file>
-
 <file path="SQLWerk/Views/ConfirmWindow.axaml">
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -1278,60 +1040,239 @@ public partial class LogWindow : Window
 }
 </file>
 
-<file path="SQLWerk/Views/MultiSelectFilterView.axaml">
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:SQLWerk.ViewModels"
-             x:Class="SQLWerk.Views.MultiSelectFilterView"
-             x:DataType="vm:MultiSelectFilterViewModel">
-    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-        <Expander.Header>
-            <StackPanel Spacing="2">
-                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
-                           MaxWidth="160" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}"/>
-                <TextBlock Text="{Binding Summary}" FontSize="11"
-                           MaxWidth="160" TextTrimming="CharacterEllipsis"
-                           ToolTip.Tip="{Binding Summary}"/>
-            </StackPanel>
-        </Expander.Header>
-        <StackPanel Spacing="6" Margin="8">
-            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
-                     PlaceholderText="Поиск по подстроке..."/>
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Content="Отметить найденные" Command="{Binding SelectVisibleCommand}"
-                        FontSize="11" Padding="5"/>
-                <Button Content="Снять" Command="{Binding ClearVisibleCommand}"
-                        FontSize="11" Padding="5"
-                        ToolTip.Tip="Снять галочки только с найденных значений"/>
-            </StackPanel>
-            <Button Content="Оставить только найденные"
-                    Command="{Binding SelectOnlyVisibleCommand}" FontSize="11"/>
-            <ScrollViewer Height="150" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding VisibleValues}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:FilterValueViewModel">
-                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch">
-                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                            </CheckBox>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-            <Button Content="Сбросить этот фильтр" Command="{Binding ResetCommand}"/>
-        </StackPanel>
-    </Expander>
-</UserControl>
-</file>
-
-<file path="SQLWerk/Views/MultiSelectFilterView.axaml.cs">
+<file path="SQLWerk/Views/NewNirGroupWindow.axaml.cs">
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using SQLWerk.ViewModels;
 
 namespace SQLWerk.Views;
 
-public partial class MultiSelectFilterView : UserControl
+public partial class NewNirGroupWindow : Window
 {
-    public MultiSelectFilterView() => InitializeComponent();
+    private readonly MainWindowViewModel? _vm;
+    private readonly TextBox _input;
+    private readonly TextBlock _message;
+
+    public NewNirGroupWindow()
+    {
+        InitializeComponent();
+        _input = this.FindControl<TextBox>("GroupNameInput")!;
+        _message = this.FindControl<TextBlock>("ValidationMessage")!;
+        Opened += (_, _) => _input.Focus();
+    }
+
+    public NewNirGroupWindow(MainWindowViewModel vm) : this() => _vm = vm;
+
+    private void OnOkClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        var code = (_input.Text ?? "").Trim();
+        if (!_vm.TryCreateNirGroup(code, out var error))
+        {
+            _message.Text = error;
+            _input.Focus();
+            return;
+        }
+        Close(code);
+    }
+
+    private void OnCancelClick(object? sender, RoutedEventArgs e) => Close();
+}
+</file>
+
+<file path="SQLWerk/Views/NirGroupPickerWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:primitives="clr-namespace:Avalonia.Controls.Primitives;assembly=Avalonia.Controls"
+        x:Class="SQLWerk.Views.NirGroupPickerWindow"
+        Title="Добавить выставки в группы НИР"
+        Width="480" Height="230" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        KeyDown="OnPopupKeyDown">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Text="Группы для выбранных выставок:"
+                   FontWeight="SemiBold" Margin="0,0,0,10"/>
+        <Button x:Name="GroupsButton" Grid.Row="1" Height="50" Padding="10,6"
+                HorizontalAlignment="Stretch" Content="Выберите группы ▾"
+                Click="OnGroupsButtonClick"/>
+        <TextBlock x:Name="SelectionSummary" Grid.Row="2" Text="Выбрано групп: 0"
+                   Margin="0,8,0,8" TextWrapping="Wrap"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right">
+            <Button x:Name="AddButton" Content="Добавить" IsDefault="True"
+                    IsEnabled="False" Click="OnAddClick"/>
+            <Button Content="Отмена" IsCancel="True" Click="OnCancelClick"/>
+        </StackPanel>
+        <primitives:Popup x:Name="GroupsPopup" Placement="Bottom"
+                          IsLightDismissEnabled="True">
+            <Border Width="380" Background="White" BorderBrush="#CCCCCC"
+                    BorderThickness="1" CornerRadius="4" Padding="10"
+                    KeyDown="OnPopupKeyDown">
+                <StackPanel Spacing="8">
+                    <TextBox x:Name="GroupSearch" PlaceholderText="Поиск по подстроке..."
+                             TextChanged="OnSearchChanged"/>
+                    <TextBlock x:Name="EmptyHint" Text="Групп пока нет. Выберите «Новая…»."
+                               TextWrapping="Wrap" IsVisible="False"/>
+                    <ScrollViewer Height="180" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="GroupOptions" Spacing="4"/>
+                    </ScrollViewer>
+                    <Separator/>
+                    <Button x:Name="NewGroupButton" Content="Новая…" Click="OnNewGroupClick"
+                            HorizontalAlignment="Stretch"/>
+                </StackPanel>
+            </Border>
+        </primitives:Popup>
+    </Grid>
+</Window>
+</file>
+
+<file path="SQLWerk/Views/NirGroupPickerWindow.cs">
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using SQLWerk.ViewModels;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SQLWerk.Views;
+
+public partial class NirGroupPickerWindow : Window
+{
+    private readonly MainWindowViewModel? _vm;
+    private readonly Dictionary<string, CheckBox> _choices = new(StringComparer.Ordinal);
+    private readonly StackPanel _options;
+    private readonly TextBlock _emptyHint;
+    private readonly TextBlock _summary;
+    private readonly Button _addButton;
+    private readonly Button _newGroupButton;
+    private readonly Button _groupsButton;
+    private readonly TextBox _search;
+    private readonly Popup _popup;
+
+    public NirGroupPickerWindow()
+    {
+        InitializeComponent();
+        _options = this.FindControl<StackPanel>("GroupOptions")!;
+        _emptyHint = this.FindControl<TextBlock>("EmptyHint")!;
+        _summary = this.FindControl<TextBlock>("SelectionSummary")!;
+        _addButton = this.FindControl<Button>("AddButton")!;
+        _newGroupButton = this.FindControl<Button>("NewGroupButton")!;
+        _groupsButton = this.FindControl<Button>("GroupsButton")!;
+        _search = this.FindControl<TextBox>("GroupSearch")!;
+        _popup = this.FindControl<Popup>("GroupsPopup")!;
+        _popup.PlacementTarget = _groupsButton;
+        _popup.Opened += (_, _) => _search.Focus();
+        Closed += (_, _) => _popup.IsOpen = false;
+    }
+
+    public NirGroupPickerWindow(MainWindowViewModel vm) : this()
+    {
+        _vm = vm;
+        RefreshOptions(vm.SelectedNirGroup?.Code);
+    }
+
+    private void RefreshOptions(string? selectCode = null)
+    {
+        if (_vm is null) return;
+        var selected = _choices.Where(item => item.Value.IsChecked == true)
+            .Select(item => item.Key).ToHashSet(StringComparer.Ordinal);
+        if (selectCode != null) selected.Add(selectCode);
+
+        _options.Children.Clear();
+        _choices.Clear();
+        foreach (var group in _vm.NirGroups)
+        {
+            var checkBox = new CheckBox
+            {
+                Content = new TextBlock { Text = group.Code, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                IsChecked = selected.Contains(group.Code)
+            };
+            checkBox.PropertyChanged += (_, e) =>
+            {
+                if (e.Property.Name == nameof(CheckBox.IsChecked)) UpdateSelection();
+            };
+            _choices.Add(group.Code, checkBox);
+            _options.Children.Add(checkBox);
+        }
+        _emptyHint.IsVisible = _choices.Count == 0;
+        ApplySearch(_search.Text);
+        UpdateSelection();
+    }
+
+    private void OnSearchChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox input) ApplySearch(input.Text);
+    }
+
+    private void ApplySearch(string? text)
+    {
+        var search = (text ?? "").Trim();
+        foreach (var item in _choices)
+            item.Value.IsVisible = item.Key.Contains(search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string[] SelectedCodes() => _choices.Where(item => item.Value.IsChecked == true)
+        .Select(item => item.Key).ToArray();
+
+    private void UpdateSelection()
+    {
+        var codes = SelectedCodes();
+        _addButton.IsEnabled = codes.Length > 0;
+        _summary.Text = $"Выбрано групп: {codes.Length}";
+        _groupsButton.Content = codes.Length == 0 ? "Выберите группы ▾"
+            : codes.Length <= 2 ? string.Join(", ", codes) + " ▾"
+            : $"Выбрано групп: {codes.Length} ▾";
+    }
+
+    private async void OnNewGroupClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        _newGroupButton.IsEnabled = false;
+        _popup.IsOpen = false;
+        try
+        {
+            var code = await new NewNirGroupWindow(_vm).ShowDialog<string?>(this);
+            if (code != null)
+            {
+                _search.Text = "";
+                RefreshOptions(code);
+            }
+        }
+        finally
+        {
+            _newGroupButton.IsEnabled = true;
+            if (IsVisible) _popup.IsOpen = true;
+        }
+    }
+
+    private void OnAddClick(object? sender, RoutedEventArgs e)
+    {
+        var codes = SelectedCodes();
+        if (codes.Length == 0) return;
+        _popup.IsOpen = false;
+        Close(codes);
+    }
+
+    private void OnGroupsButtonClick(object? sender, RoutedEventArgs e) =>
+        _popup.IsOpen = !_popup.IsOpen;
+
+    private void OnPopupKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _popup.IsOpen)
+        {
+            _popup.IsOpen = false;
+            e.Handled = true;
+            _groupsButton.Focus();
+        }
+    }
+
+    private void OnCancelClick(object? sender, RoutedEventArgs e)
+    {
+        _popup.IsOpen = false;
+        Close();
+    }
 }
 </file>
 
@@ -2611,81 +2552,28 @@ namespace SQLWerk.Data.Extensions
 }
 </file>
 
-<file path="SQLWerk/Services/DataBaseMaintenanceService.cs">
+<file path="SQLWerk/Data/Sqlite/SqliteConnectionFactory.cs">
 using Microsoft.Data.Sqlite;
 using SQLWerk.Data.Abstractions;
-using SQLWerk.Data.Sqlite;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Text;
 
-namespace SQLWerk.Services
+namespace SQLWerk.Data.Sqlite
 {
-    internal class DataBaseMaintenanceService : IDataBaseMaintenanceService
+    internal class SqliteConnectionFactory : IConnectionFactory
     {
-        private readonly IConnectionFactory _factory;
-        private readonly IFullDataRepository _fullDataRepo;
-        private readonly string _dbPath;
+        private readonly string _cs;
 
-        public DataBaseMaintenanceService(IConnectionFactory factory,
-            IFullDataRepository fullDataRepo,
-            string dbPath)
-        {
-            _factory = factory;
-            _fullDataRepo = fullDataRepo;
-            _dbPath = dbPath;
-        }
-
-        public void ReloadDataBase()
-        {
-            SqliteConnection.ClearAllPools();
-            if (File.Exists(_dbPath))
+        public SqliteConnectionFactory(string dbPath) =>
+            _cs = new SqliteConnectionStringBuilder
             {
-                File.Delete(_dbPath);
-            }
-            RecreateSchema();
-        }
+                DataSource = Path.GetFullPath(dbPath),
+                ForeignKeys = true
+            }.ToString();
 
-        public void RecreateSchema()
-        {
-            using var conn = _factory.Create();
-            conn.Open();
-
-            using var cmd = conn.CreateCommand();
-
-            cmd.CommandText = """
-                DROP VIEW  IF EXISTS AllDataView;
-                DROP TABLE IF EXISTS NirGroupMembers;
-                DROP TABLE IF EXISTS NirGroups;
-                DROP TABLE IF EXISTS Exhibits;
-                DROP TABLE IF EXISTS Vuz;
-                DROP TABLE IF EXISTS Grnti;
-
-                CREATE TABLE Exhibits (
-                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codvuz    INTEGER, Z2 TEXT, Type TEXT, Regnumber TEXT,
-                    Subject   TEXT, Grnti TEXT, Bossname TEXT, Bosstitle TEXT,
-                    Exhitype  TEXT, Vystavki TEXT, Exponat TEXT
-                );
-
-                CREATE TABLE Vuz (
-                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codvuz    INTEGER, Z2 TEXT, Z1 TEXT, Z1Full TEXT,
-                    Region    TEXT, City TEXT, Status TEXT,
-                    Obl       TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
-                );
-
-                CREATE TABLE Grnti (
-                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Codrub    TEXT, Rubrika TEXT
-                );
-            """;
-            cmd.ExecuteNonQuery();
-
-            _fullDataRepo.EnsureCreated();
-        }
+        public SqliteConnection Create() => new SqliteConnection(_cs);
     }
 }
 </file>
@@ -2902,6 +2790,134 @@ public partial class MainViewModel : ViewModelBase
 }
 </file>
 
+<file path="SQLWerk/ViewModels/MultiSelectFilterViewModel.cs">
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+
+namespace SQLWerk.ViewModels;
+
+public partial class FilterValueViewModel : ObservableObject
+{
+    public string Value { get; }
+    public string Label => Value.Length == 0 ? "(Пусто)" : Value;
+
+    [ObservableProperty] private bool _isSelected;
+
+    public FilterValueViewModel(string value, bool isSelected)
+    {
+        Value = value;
+        _isSelected = isSelected;
+    }
+}
+
+public partial class MultiSelectFilterViewModel : ObservableObject
+{
+    private readonly List<FilterValueViewModel> _values = new();
+    private bool _updating;
+
+    public string Title { get; }
+    public ObservableCollection<FilterValueViewModel> VisibleValues { get; } = new();
+    public event EventHandler? SelectionChanged;
+
+    [ObservableProperty] private string _searchText = "";
+
+    public string Summary
+    {
+        get
+        {
+            var selected = _values.Where(value => value.IsSelected).ToList();
+            if (selected.Count == _values.Count) return "Все значения";
+            if (selected.Count == 0) return "Ничего не выбрано";
+            return selected.Count <= 2
+                ? string.Join(", ", selected.Select(value => value.Label))
+                : $"Выбрано: {selected.Count} из {_values.Count}";
+        }
+    }
+
+    public MultiSelectFilterViewModel(string title) => Title = title;
+
+    // null означает отсутствие ограничения. Пустой набор — не выбрано ничего.
+    public HashSet<string>? GetSelection() => _values.All(value => value.IsSelected)
+        ? null
+        : _values.Where(value => value.IsSelected)
+            .Select(value => value.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    public void SetValues(IEnumerable<string?> values)
+    {
+        var selection = GetSelection();
+        foreach (var item in _values)
+            item.PropertyChanged -= OnValueChanged;
+        _values.Clear();
+
+        foreach (var value in values.Select(value => (value ?? "").Trim())
+                     .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value))
+        {
+            var item = new FilterValueViewModel(value, selection == null || selection.Contains(value));
+            item.PropertyChanged += OnValueChanged;
+            _values.Add(item);
+        }
+
+        UpdateVisibleValues();
+        OnPropertyChanged(nameof(Summary));
+    }
+
+    partial void OnSearchTextChanged(string value) => UpdateVisibleValues();
+
+    private void UpdateVisibleValues()
+    {
+        var search = (SearchText ?? "").Trim();
+        VisibleValues.Clear();
+        foreach (var item in _values.Where(value =>
+                     value.Label.Contains(search, StringComparison.OrdinalIgnoreCase)))
+            VisibleValues.Add(item);
+    }
+
+    private void OnValueChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!_updating && e.PropertyName == nameof(FilterValueViewModel.IsSelected))
+            NotifySelectionChanged();
+    }
+
+    private void NotifySelectionChanged()
+    {
+        OnPropertyChanged(nameof(Summary));
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // Команды действуют на весь фильтр, включая скрытые поиском значения.
+    [RelayCommand]
+    private void SelectAll() => SetSelected(_values, true);
+
+    [RelayCommand]
+    private void ClearAll() => SetSelected(_values, false);
+
+    private void SetSelected(IEnumerable<FilterValueViewModel> values, bool selected)
+    {
+        _updating = true;
+        try
+        {
+            foreach (var value in values)
+                value.IsSelected = selected;
+        }
+        finally { _updating = false; }
+        NotifySelectionChanged();
+    }
+
+    [RelayCommand]
+    public void Reset()
+    {
+        SearchText = "";
+        SetSelected(_values, true);
+    }
+}
+</file>
+
 <file path="SQLWerk/ViewModels/ViewModelBase.cs">
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -2965,6 +2981,95 @@ public abstract class ViewModelBase : ObservableObject
                  BorderThickness="0"
                  Background="Transparent"/>
     </DockPanel>
+</Window>
+</file>
+
+<file path="SQLWerk/Views/MultiSelectFilterView.axaml">
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SQLWerk.ViewModels"
+             x:Class="SQLWerk.Views.MultiSelectFilterView"
+             x:DataType="vm:MultiSelectFilterViewModel">
+    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+            Height="60" Padding="10,6">
+        <Button.Content>
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}"/>
+                    <TextBlock Text="{Binding Summary}" FontSize="11"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Summary}"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="▾" Margin="8,0,0,0"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Button.Content>
+        <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft" ShowMode="Standard"
+                    Opening="OnFilterOpening">
+                <StackPanel Spacing="6" Width="280">
+                    <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                             PlaceholderText="Поиск по подстроке..."/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="Отметить все" Command="{Binding SelectAllCommand}"/>
+                        <Button Content="Снять все" Command="{Binding ClearAllCommand}"/>
+                    </StackPanel>
+                    <ScrollViewer Height="180" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding VisibleValues}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FilterValueViewModel">
+                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch">
+                                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                                    </CheckBox>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>
+</file>
+
+<file path="SQLWerk/Views/MultiSelectFilterView.axaml.cs">
+using Avalonia.Controls;
+using System;
+
+namespace SQLWerk.Views;
+
+public partial class MultiSelectFilterView : UserControl
+{
+    public MultiSelectFilterView() => InitializeComponent();
+
+    private void OnFilterOpening(object? sender, EventArgs e)
+    {
+        // Передаем текущую модель фильтра в отдельную всплывающую панель.
+        if (sender is Flyout { Content: Control panel })
+            panel.DataContext = DataContext;
+    }
+}
+</file>
+
+<file path="SQLWerk/Views/NewNirGroupWindow.axaml">
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SQLWerk.Views.NewNirGroupWindow"
+        Title="Новая группа НИР" Width="440" Height="240"
+        CanResize="False" WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Text="Название группы:"
+                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <TextBox x:Name="GroupNameInput" Grid.Row="1"/>
+        <TextBlock x:Name="ValidationMessage" Grid.Row="2" Foreground="Firebrick"
+                   TextWrapping="Wrap" Margin="0,8,0,8"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right">
+            <Button Content="ОК" IsDefault="True" Click="OnOkClick"/>
+            <Button Content="Отмена" IsCancel="True" Click="OnCancelClick"/>
+        </StackPanel>
+    </Grid>
 </Window>
 </file>
 
@@ -3330,6 +3435,85 @@ namespace SQLWerk.Models
 
         public string? Codrub { get; set; }
         public string? Rubrika { get; set; }
+    }
+}
+</file>
+
+<file path="SQLWerk/Services/DataBaseMaintenanceService.cs">
+using Microsoft.Data.Sqlite;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Sqlite;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.IO;
+using System.Text;
+
+namespace SQLWerk.Services
+{
+    internal class DataBaseMaintenanceService : IDataBaseMaintenanceService
+    {
+        private readonly IConnectionFactory _factory;
+        private readonly IFullDataRepository _fullDataRepo;
+        private readonly string _dbPath;
+
+        public DataBaseMaintenanceService(IConnectionFactory factory,
+            IFullDataRepository fullDataRepo,
+            string dbPath)
+        {
+            _factory = factory;
+            _fullDataRepo = fullDataRepo;
+            _dbPath = dbPath;
+        }
+
+        public void ReloadDataBase()
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(_dbPath))
+            {
+                File.Delete(_dbPath);
+            }
+            RecreateSchema();
+        }
+
+        public void RecreateSchema()
+        {
+            using var conn = _factory.Create();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+
+            cmd.CommandText = """
+                DROP VIEW  IF EXISTS AllDataView;
+                DROP TABLE IF EXISTS NirGroupMembers;
+                DROP TABLE IF EXISTS NirGroups;
+                DROP TABLE IF EXISTS Exhibits;
+                DROP TABLE IF EXISTS Vuz;
+                DROP TABLE IF EXISTS Grnti;
+
+                CREATE TABLE Exhibits (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codvuz    INTEGER, Z2 TEXT, Type TEXT, Regnumber TEXT,
+                    Subject   TEXT, Grnti TEXT, Bossname TEXT, Bosstitle TEXT,
+                    Exhitype  TEXT, Vystavki TEXT, Exponat TEXT
+                );
+
+                CREATE TABLE Vuz (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codvuz    INTEGER, Z2 TEXT, Z1 TEXT, Z1Full TEXT,
+                    Region    TEXT, City TEXT, Status TEXT,
+                    Obl       TEXT, OblName TEXT, GrVed TEXT, Prof TEXT
+                );
+
+                CREATE TABLE Grnti (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Codrub    TEXT, Rubrika TEXT
+                );
+            """;
+            cmd.ExecuteNonQuery();
+
+            _fullDataRepo.EnsureCreated();
+        }
     }
 }
 </file>
@@ -3987,166 +4171,6 @@ namespace SQLWerk.Data.Sqlite
 }
 </file>
 
-<file path="SQLWerk/Views/MainWindow.axaml.cs">
-using System;
-using System.Threading.Tasks;
-using System.Linq;
-using Avalonia.Controls;
-using Microsoft.Extensions.DependencyInjection;
-using SQLWerk.Models;
-using SQLWerk.ViewModels;
-
-namespace SQLWerk.Views;
-
-public partial class MainWindow : Window
-{
-    private LogWindow? _logWindow;
-    private NirGroupWindow? _nirGroupWindow;
-
-    public MainWindow() => InitializeComponent();
-
-    protected override void OnDataContextChanged(EventArgs e)
-    {
-        base.OnDataContextChanged(e);
-
-        if (DataContext is MainWindowViewModel vm)
-        {
-            vm.ShowLogRequested += OnShowLog;
-            vm.ShowNirGroupRequested += OnShowNirGroup;
-            vm.SelectNirGroupHandler = ShowNirGroupPickerAsync;
-            vm.GrntiEditHandler = ShowGrntiEditAsync;
-            vm.ConfirmHandler = ShowConfirmAsync;
-            vm.VuzEditHandler = ShowVuzEditAsync;
-            vm.ExhibitEditHandler = ShowExhibitEditAsync;
-        }
-    }
-
-    private void OnGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm || sender is not DataGrid grid) return;
-        switch (grid.Name)
-        {
-            case "ExhibitsGrid":
-                vm.SelectedExhibits = grid.SelectedItems.OfType<ExhibitTableRow>().ToList();
-                break;
-            case "VuzGrid":
-                vm.SelectedVuzes = grid.SelectedItems.OfType<VuzTableRow>().ToList();
-                break;
-            case "FullGrid":
-                vm.SelectedFullRows = grid.SelectedItems.OfType<FullModel>().ToList();
-                break;
-            case "GrntiGrid":
-                vm.SelectedGrntiRows = grid.SelectedItems.OfType<GrntiTableRow>().ToList();
-                break;
-        }
-    }
-
-    private async Task<NirGroup?> ShowNirGroupPickerAsync()
-    {
-        if (DataContext is not MainWindowViewModel vm) return null;
-        return await new NirGroupPickerWindow(vm).ShowDialog<NirGroup?>(this);
-    }
-
-    private void OnShowNirGroup(object? sender, EventArgs e)
-    {
-        if (_nirGroupWindow is { IsVisible: true })
-        {
-            _nirGroupWindow.Activate();
-            return;
-        }
-        if (DataContext is not MainWindowViewModel vm) return;
-        _nirGroupWindow = new NirGroupWindow { DataContext = vm };
-        _nirGroupWindow.Closed += (_, _) =>
-        {
-            vm.SelectedGroupRows = new();
-            _nirGroupWindow = null;
-        };
-        _nirGroupWindow.Show(this);
-    }
-
-    private void OnShowLog(object? sender, EventArgs e)
-    {
-        if (_logWindow is { IsVisible: true })
-        {
-            _logWindow.Activate();
-            return;
-        }
-
-        _logWindow = new LogWindow
-        {
-            DataContext = App.Services.GetRequiredService<LogViewModel>()
-        };
-        _logWindow.Closed += (_, _) => _logWindow = null;
-        _logWindow.Show(this);
-    }
-
-    private async Task<GrntiTableRow?> ShowGrntiEditAsync(GrntiTableRow? existing)
-    {
-        var dialogVm = existing is null
-            ? new GrntiEditViewModel()
-            : new GrntiEditViewModel(existing);
-
-        var dlg = new GrntiEditWindow { DataContext = dialogVm };
-        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
-
-        return await dlg.ShowDialog<GrntiTableRow?>(this);
-    }
-
-    private async Task<bool> ShowConfirmAsync(string title, string message)
-    {
-        var dialogVm = new ConfirmViewModel(title, message);
-        var dlg = new ConfirmWindow { DataContext = dialogVm };
-        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
-
-        return await dlg.ShowDialog<bool>(this);
-    }
-
-    private async Task<VuzTableRow?> ShowVuzEditAsync(VuzTableRow? existing)
-    {
-        var dialogVm = existing is null
-            ? new VuzEditViewModel()
-            : new VuzEditViewModel(existing);
-
-        var dlg = new VuzEditWindow { DataContext = dialogVm };
-        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
-
-        return await dlg.ShowDialog<VuzTableRow?>(this);
-    }
-
-    private async Task<ExhibitTableRow?> ShowExhibitEditAsync(ExhibitTableRow? existing)
-    {
-        var dialogVm = existing is null
-            ? new ExhibitEditViewModel()
-            : new ExhibitEditViewModel(existing);
-
-        var dlg = new ExhibitEditWindow { DataContext = dialogVm };
-        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
-
-        return await dlg.ShowDialog<ExhibitTableRow?>(this);
-    }
-}
-</file>
-
-<file path="SQLWerk/App.axaml">
-<Application xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="SQLWerk.App"
-             xmlns:local="using:SQLWerk"
-             RequestedThemeVariant="Light">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-
-    <Application.DataTemplates>
-        <local:ViewLocator />
-    </Application.DataTemplates>
-
-    <Application.Styles>
-        <FluentTheme />
-        <StyleInclude Source ="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
-        <StyleInclude Source="avares://SQLWerk/Styles/DataGridStyles.axaml"/>
-    </Application.Styles>
-</Application>
-</file>
-
 <file path=".gitignore">
 ## Ignore Visual Studio temporary files, build results, and
 ## files generated by popular Visual Studio add-ons.
@@ -4690,119 +4714,6 @@ namespace SQLWerk.Data.Sqlite
 }
 </file>
 
-<file path="SQLWerk/Services/CrossValidationService.cs">
-using Microsoft.Extensions.Logging;
-using SQLWerk.Data.Abstractions;
-using SQLWerk.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace SQLWerk.Services
-{
-    public class CrossValidationService
-    {
-        private readonly ILogger<CrossValidationService> _logger;
-
-        private readonly IBatchDeleteService _batchDelete;
-
-        public CrossValidationService(ILogger<CrossValidationService> logger, IBatchDeleteService batchDelete)
-        {
-            _logger = logger;
-            _batchDelete = batchDelete;
-        }
-
-        public int RemoveInvalidExhibits(
-            IExhibitRepository exhibitRepo,
-            IVuzRepository vuzRepo,
-            IGrntiRepository grntiRepo)
-        {
-            var validCodvuz = vuzRepo.GetAll()
-                .Where(v => v.Codvuz > 0 && !string.IsNullOrWhiteSpace(v.Z1Full))
-                .Select(v => v.Codvuz)
-                .ToHashSet();
-
-            var validRubrics = grntiRepo.GetAll()
-                .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
-                .Select(g => ExtractRubric(g.Codrub!))
-                .Where(r => r.Length == 2)
-                .ToHashSet(StringComparer.Ordinal);
-
-            var exhibits = exhibitRepo.GetAll();
-            var invalidIds = new List<long>();
-            int removed = 0;
-
-            foreach (var e in exhibits)
-            {
-                var issues = new List<string>();
-
-                var cod = e.Codvuz;
-                if (cod <= 0)
-                    issues.Add("пустой код ВУЗа");
-                else if (!validCodvuz.Contains(cod))
-                    issues.Add($"ВУЗ с кодом '{cod}' не найден");
-
-                var missing = GetMissingRubrics(e.Grnti, validRubrics);
-                if (missing.Count > 0)
-                    issues.Add($"рубрики ГРНТИ не найдены: {string.Join(", ", missing)}");
-
-                if (issues.Count == 0)
-                {
-                    continue;
-                }
-                else
-                {
-                    removed++;
-                    invalidIds.Add(e.Id);
-
-                    var reg = string.IsNullOrWhiteSpace(e.Regnumber) ? "—" : e.Regnumber.Trim();
-                    var subj = string.IsNullOrWhiteSpace(e.Subject) ? "—" : e.Subject.Trim();
-
-                    _logger.LogWarning(
-                        "Выставка с рег. номером {Regnumber} удалена. Причина: {Reason}",
-                        reg, string.Join("; ", issues));
-                }
-            }
-
-            if (removed > 0)
-            {
-                _batchDelete.DeleteExhibits(invalidIds);
-            }
-
-            return removed;
-        }
-
-        private static string ExtractRubric(string code)
-        {
-            var trimmed = code.Trim();
-            return trimmed.Length >= 2 ? trimmed.Substring(0, 2) : trimmed;
-        }
-
-        private static List<string> GetMissingRubrics(string? grntiString, HashSet<string> valid)
-        {
-            var result = new List<string>();
-            if (string.IsNullOrWhiteSpace(grntiString)) return result;
-
-            var parts = grntiString.Split(
-                new[] { ',', ';' },
-                StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var part in parts)
-            {
-                var rubric = ExtractRubric(part);
-                if (rubric.Length == 2
-                    && !valid.Contains(rubric)
-                    && !result.Contains(rubric))
-                {
-                    result.Add(rubric);
-                }
-            }
-            return result;
-        }
-    }
-}
-</file>
-
 <file path="SQLWerk/Services/ValidationService.cs">
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;
@@ -5307,6 +5218,275 @@ public partial class VuzEditViewModel : ObservableObject
     {
         Result = null;
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+}
+</file>
+
+<file path="SQLWerk/Views/MainWindow.axaml.cs">
+using System;
+using System.Threading.Tasks;
+using System.Linq;
+using Avalonia.Controls;
+using Microsoft.Extensions.DependencyInjection;
+using SQLWerk.Models;
+using SQLWerk.ViewModels;
+
+namespace SQLWerk.Views;
+
+public partial class MainWindow : Window
+{
+    private LogWindow? _logWindow;
+
+    public MainWindow() => InitializeComponent();
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+
+        if (DataContext is MainWindowViewModel vm)
+        {
+            vm.ShowLogRequested += OnShowLog;
+            vm.SelectNirGroupsHandler = ShowNirGroupPickerAsync;
+            vm.GrntiEditHandler = ShowGrntiEditAsync;
+            vm.ConfirmHandler = ShowConfirmAsync;
+            vm.VuzEditHandler = ShowVuzEditAsync;
+            vm.ExhibitEditHandler = ShowExhibitEditAsync;
+        }
+    }
+
+    private void OnGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm || sender is not DataGrid grid) return;
+        switch (grid.Name)
+        {
+            case "ExhibitsGrid":
+                vm.SelectedExhibits = grid.SelectedItems.OfType<ExhibitTableRow>().ToList();
+                break;
+            case "VuzGrid":
+                vm.SelectedVuzes = grid.SelectedItems.OfType<VuzTableRow>().ToList();
+                break;
+            case "NirGroupsGrid":
+                vm.SelectedGroupRows = grid.SelectedItems.OfType<NirGroupEntry>().ToList();
+                break;
+            case "FullGrid":
+                vm.SelectedFullRows = grid.SelectedItems.OfType<FullModel>().ToList();
+                break;
+            case "GrntiGrid":
+                vm.SelectedGrntiRows = grid.SelectedItems.OfType<GrntiTableRow>().ToList();
+                break;
+        }
+    }
+
+    private async Task<string[]?> ShowNirGroupPickerAsync()
+    {
+        if (DataContext is not MainWindowViewModel vm) return null;
+        return await new NirGroupPickerWindow(vm).ShowDialog<string[]?>(this);
+    }
+
+    private void OnShowLog(object? sender, EventArgs e)
+    {
+        if (_logWindow is { IsVisible: true })
+        {
+            _logWindow.Activate();
+            return;
+        }
+
+        _logWindow = new LogWindow
+        {
+            DataContext = App.Services.GetRequiredService<LogViewModel>()
+        };
+        _logWindow.Closed += (_, _) => _logWindow = null;
+        _logWindow.Show(this);
+    }
+
+    private async Task<GrntiTableRow?> ShowGrntiEditAsync(GrntiTableRow? existing)
+    {
+        var dialogVm = existing is null
+            ? new GrntiEditViewModel()
+            : new GrntiEditViewModel(existing);
+
+        var dlg = new GrntiEditWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<GrntiTableRow?>(this);
+    }
+
+    private async Task<bool> ShowConfirmAsync(string title, string message)
+    {
+        var dialogVm = new ConfirmViewModel(title, message);
+        var dlg = new ConfirmWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<bool>(this);
+    }
+
+    private async Task<VuzTableRow?> ShowVuzEditAsync(VuzTableRow? existing)
+    {
+        var dialogVm = existing is null
+            ? new VuzEditViewModel()
+            : new VuzEditViewModel(existing);
+
+        var dlg = new VuzEditWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<VuzTableRow?>(this);
+    }
+
+    private async Task<ExhibitTableRow?> ShowExhibitEditAsync(ExhibitTableRow? existing)
+    {
+        var dialogVm = existing is null
+            ? new ExhibitEditViewModel()
+            : new ExhibitEditViewModel(existing);
+
+        var dlg = new ExhibitEditWindow { DataContext = dialogVm };
+        dialogVm.CloseRequested += (_, _) => dlg.Close(dialogVm.Result);
+
+        return await dlg.ShowDialog<ExhibitTableRow?>(this);
+    }
+}
+</file>
+
+<file path="SQLWerk/App.axaml">
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SQLWerk.App"
+             xmlns:local="using:SQLWerk"
+             RequestedThemeVariant="Light">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.Resources>
+        <!-- Цвет отмеченных CheckBox в фильтрах и выборе групп. -->
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked">#48A9E6</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver">#3498DB</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed">#2485C2</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver">#3498DB</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed">#2485C2</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked">White</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver">White</SolidColorBrush>
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed">White</SolidColorBrush>
+    </Application.Resources>
+
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source ="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+        <StyleInclude Source="avares://SQLWerk/Styles/DataGridStyles.axaml"/>
+    </Application.Styles>
+</Application>
+</file>
+
+<file path="SQLWerk/Services/CrossValidationService.cs">
+using Microsoft.Extensions.Logging;
+using SQLWerk.Data.Abstractions;
+using SQLWerk.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SQLWerk.Services
+{
+    public class CrossValidationService
+    {
+        private readonly ILogger<CrossValidationService> _logger;
+
+        private readonly IBatchDeleteService _batchDelete;
+
+        public CrossValidationService(ILogger<CrossValidationService> logger, IBatchDeleteService batchDelete)
+        {
+            _logger = logger;
+            _batchDelete = batchDelete;
+        }
+
+        public int RemoveInvalidExhibits(
+            IExhibitRepository exhibitRepo,
+            IVuzRepository vuzRepo,
+            IGrntiRepository grntiRepo)
+        {
+            var validCodvuz = vuzRepo.GetAll()
+                .Where(v => v.Codvuz > 0 && !string.IsNullOrWhiteSpace(v.Z1Full))
+                .Select(v => v.Codvuz)
+                .ToHashSet();
+
+            var validRubrics = grntiRepo.GetAll()
+                .Where(g => !string.IsNullOrWhiteSpace(g.Codrub))
+                .Select(g => ExtractRubric(g.Codrub!))
+                .Where(r => r.Length == 2)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var exhibits = exhibitRepo.GetAll();
+            var invalidIds = new List<long>();
+            int removed = 0;
+
+            foreach (var e in exhibits)
+            {
+                var issues = new List<string>();
+
+                var cod = e.Codvuz;
+                if (cod <= 0)
+                    issues.Add("пустой код ВУЗа");
+                else if (!validCodvuz.Contains(cod))
+                    issues.Add($"ВУЗ с кодом '{cod}' не найден");
+
+                var missing = GetMissingRubrics(e.Grnti, validRubrics);
+                if (missing.Count > 0)
+                    issues.Add($"рубрики ГРНТИ не найдены: {string.Join(", ", missing)}");
+
+                if (issues.Count == 0)
+                {
+                    continue;
+                }
+                else
+                {
+                    removed++;
+                    invalidIds.Add(e.Id);
+
+                    var reg = string.IsNullOrWhiteSpace(e.Regnumber) ? "—" : e.Regnumber.Trim();
+                    var subj = string.IsNullOrWhiteSpace(e.Subject) ? "—" : e.Subject.Trim();
+
+                    _logger.LogWarning(
+                        "Выставка с рег. номером {Regnumber} удалена. Причина: {Reason}",
+                        reg, string.Join("; ", issues));
+                }
+            }
+
+            if (removed > 0)
+            {
+                _batchDelete.DeleteExhibits(invalidIds);
+            }
+
+            return removed;
+        }
+
+        private static string ExtractRubric(string code)
+        {
+            var trimmed = code.Trim();
+            return trimmed.Length >= 2 ? trimmed.Substring(0, 2) : trimmed;
+        }
+
+        private static List<string> GetMissingRubrics(string? grntiString, HashSet<string> valid)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(grntiString)) return result;
+
+            var parts = grntiString.Split(
+                new[] { ',', ';' },
+                StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var part in parts)
+            {
+                var rubric = ExtractRubric(part);
+                if (rubric.Length == 2
+                    && !valid.Contains(rubric)
+                    && !result.Contains(rubric))
+                {
+                    result.Add(rubric);
+                }
+            }
+            return result;
+        }
     }
 }
 </file>
@@ -5851,13 +6031,39 @@ public partial class App : Application
 				<MenuItem Header="Выбрать файлы Excel"
                           Command="{Binding LoadCommand}" />
 			</MenuItem>
+            <MenuItem Header="Группы НИР" Command="{Binding ShowNirGroupCommand}"/>
 		</Menu>
 
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,4" Spacing="8">
-            <Button Content="Группы НИР" Command="{Binding ShowNirGroupCommand}"/>
-        </StackPanel>
+		<StackPanel DockPanel.Dock="Top"
+            Margin="12,8"
+            IsVisible="{Binding !ShowErrorScreen}">
 
-		<Border DockPanel.Dock="Bottom"
+		<StackPanel.Styles>
+			<Style Selector="TextBlock">
+				<Setter Property="FontSize" Value="20"/>
+				<Setter Property="FontWeight" Value="SemiBold"/>
+			</Style>
+		</StackPanel.Styles>
+
+		<TextBlock Text="Выставки"
+               IsVisible="{Binding ShowExhibits}"/>
+
+		<TextBlock Text="ВУЗы"
+               IsVisible="{Binding ShowVuz}"/>
+
+		<TextBlock Text="ГРНТИ"
+               IsVisible="{Binding ShowGrnti}"/>
+
+		<TextBlock Text="Вся информация"
+               IsVisible="{Binding ShowAll}"/>
+
+		<TextBlock Text="Группы НИР"
+               IsVisible="{Binding ShowNirGroups}"/>
+		</StackPanel>
+
+
+
+		<Border DockPanel.Dock="Bottom" IsVisible="{Binding !ShowNirGroups}"
                 Background="#EFEFEF"
                 Padding="8,4"
                 BorderBrush="#CCCCCC"
@@ -5995,11 +6201,28 @@ public partial class App : Application
 					</DataGrid>
 				</Grid>
 
-				<Grid IsVisible="{Binding ShowAll}">
+				<Grid IsVisible="{Binding ShowAll}" RowDefinitions="Auto,*">
 
-					<DataGrid x:Name="FullGrid"
+					<Border Grid.Row="0" Background="#F0F0F0" BorderBrush="#CCCCCC"
+                            BorderThickness="1" CornerRadius="4" Padding="8" Margin="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Фильтры" FontWeight="SemiBold"/>
+                            <WrapPanel Orientation="Horizontal">
+                                <views:MultiSelectFilterView DataContext="{Binding RegionFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding OblFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding CityFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding GrntiFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding ExhitypeFilter}" Width="245" Margin="0,0,8,6"/>
+                                <views:MultiSelectFilterView DataContext="{Binding TypeFilter}" Width="245" Margin="0,0,8,6"/>
+                            </WrapPanel>
+                            <Button Content="Сбросить фильтры" Command="{Binding ResetFiltersCommand}"
+                                    HorizontalAlignment="Right"/>
+                        </StackPanel>
+                    </Border>
+
+                    <DataGrid x:Name="FullGrid" Grid.Row="1"
                               SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"
-                              ItemsSource="{Binding FullTable}"
+                              ItemsSource="{Binding FilteredFull}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True">
 						<DataGrid.ContextMenu>
@@ -6035,7 +6258,62 @@ public partial class App : Application
 						</DataGrid.Columns>
 					</DataGrid>
 				</Grid>
-			</Grid>
+			
+                <Grid IsVisible="{Binding ShowNirGroups}" RowDefinitions="Auto,*" Margin="8">
+                    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,8">
+                        <WrapPanel Orientation="Horizontal">
+                            <TextBlock Text="Группа:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                            <ComboBox ItemsSource="{Binding NirGroups}"
+                                      SelectedItem="{Binding SelectedNirGroup, Mode=TwoWay}"
+                                      Width="240" Margin="0,0,12,8">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:NirGroup">
+                                        <TextBlock Text="{Binding Code}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBox Text="{Binding NewNirGroupName, Mode=TwoWay}"
+                                     PlaceholderText="Название новой группы"
+                                     Width="270" Margin="0,0,8,8"/>
+                            <Button Content="Создать группу" Command="{Binding CreateNirGroupCommand}" Margin="0,0,0,8"/>
+                            <Button Content="Удалить группу" Command="{Binding DeleteNirGroupCommand}" Margin="8,0,0,8"/>
+                        </WrapPanel>
+						<StackPanel Orientation="Horizontal" Spacing="12">
+							<TextBlock Text="{Binding NirGroupRows.Count, StringFormat='Выставок в группе: {0}'}"
+                                       VerticalAlignment="Center"/>
+							<Button Content="Убрать выбранные из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
+						</StackPanel>
+                        <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <DataGrid x:Name="NirGroupsGrid" Grid.Row="1" ItemsSource="{Binding NirGroupRows}"
+                              SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"
+                              AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid.Columns>
+							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Exhibit.Regnumber}" />
+							<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Exhibit.Type}" />
+							<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Exhibit.Subject}" />
+							<DataGridTextColumn Header="Код ГРНТИ" Binding="{Binding Exhibit.Grnti}" />
+							<DataGridTextColumn Header="Наименование рубрики" Binding="{Binding Exhibit.Rubrika}" />
+							<DataGridTextColumn Header="Руководитель" Binding="{Binding Exhibit.Bossname}" />
+							<DataGridTextColumn Header="Должность/научная степень руководителя" Binding="{Binding Exhibit.Bosstitle}" />
+							<DataGridTextColumn Header="Наличие экспоната" Binding="{Binding Exhibit.Exhitype}" />
+							<DataGridTextColumn Header="Выставки" Binding="{Binding Exhibit.Vystavki}" />
+							<DataGridTextColumn Header="Название экспоната" Binding="{Binding Exhibit.Exponat}" />
+							<DataGridTextColumn Header="Код ВУЗа" Binding="{Binding Exhibit.Codvuz}" />
+							<DataGridTextColumn Header="Краткое наименование ВУЗа" Binding="{Binding Exhibit.Z2}" />
+							<DataGridTextColumn Header="Наименование ВУЗа" Binding="{Binding Exhibit.Z1}" />
+							<DataGridTextColumn Header="Полное наименование ВУЗа" Binding="{Binding Exhibit.Z1Full}" />
+							<DataGridTextColumn Header="Тип учреждения" Binding="{Binding Exhibit.Status}" />
+							<DataGridTextColumn Header="Федеральный округ" Binding="{Binding Exhibit.Region}" />
+							<DataGridTextColumn Header="Город" Binding="{Binding Exhibit.City}" />
+							<DataGridTextColumn Header="Код региона" Binding="{Binding Exhibit.Obl}" />
+							<DataGridTextColumn Header="Регион" Binding="{Binding Exhibit.OblName}" />
+							<DataGridTextColumn Header="Статус" Binding="{Binding Exhibit.GrVed}" />
+							<DataGridTextColumn Header="Специализация" Binding="{Binding Exhibit.Prof}" />
+						</DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+</Grid>
 
 			<Grid IsVisible="{Binding ShowErrorScreen}" Margin="16">
 				<DockPanel>
@@ -6126,10 +6404,26 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private bool _showVuz;
         [ObservableProperty] private bool _showGrnti;
         [ObservableProperty] private bool _showAll;
+        [ObservableProperty] private bool _showNirGroups;
         [ObservableProperty] private bool _showErrorScreen;
         [ObservableProperty] private string _errorScreenText = "";
 
         [ObservableProperty] private bool _isBlinking;
+
+        public MultiSelectFilterViewModel RegionFilter { get; } = new("Федеральный округ");
+        public MultiSelectFilterViewModel OblFilter { get; } = new("Субъект федерации");
+        public MultiSelectFilterViewModel CityFilter { get; } = new("Город");
+        public MultiSelectFilterViewModel GrntiFilter { get; } = new("Рубрика ГРНТИ");
+        public MultiSelectFilterViewModel ExhitypeFilter { get; } = new("Наличие экспоната");
+        public MultiSelectFilterViewModel TypeFilter { get; } = new("Признак формы");
+        private bool _updatingFilters;
+
+        private IEnumerable<MultiSelectFilterViewModel> Filters =>
+            new[] { RegionFilter, OblFilter, CityFilter, GrntiFilter, ExhitypeFilter, TypeFilter };
+
+        [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
+
+
 
 
         [ObservableProperty]
@@ -6163,6 +6457,7 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private string _nirGroupMessage = "";
 
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(DeleteNirGroupCommand))]
         private NirGroup? _selectedNirGroup;
 
         [ObservableProperty]
@@ -6175,8 +6470,7 @@ namespace SQLWerk.ViewModels
         [NotifyCanExecuteChangedFor(nameof(RemoveFromNirGroupCommand))]
         private List<NirGroupEntry> _selectedGroupRows = new();
 
-        public event EventHandler? ShowNirGroupRequested;
-        public Func<Task<NirGroup?>>? SelectNirGroupHandler { get; set; }
+        public Func<Task<string[]?>>? SelectNirGroupsHandler { get; set; }
         private bool CanAddToNirGroup() => SelectedFullRows.Count > 0;
         private bool CanAddSelectedExhibitsToNirGroup() => SelectedExhibits.Count > 0;
         private bool CanEditFullExhibit() => SelectedFullRows.Count == 1;
@@ -6186,23 +6480,77 @@ namespace SQLWerk.ViewModels
         partial void OnSelectedNirGroupChanged(NirGroup? value) => RefreshNirGroup();
 
         [RelayCommand]
-        private void ShowNirGroup() => ShowNirGroupRequested?.Invoke(this, EventArgs.Empty);
+        private void ShowNirGroup()
+        {
+            CloseErrorScreenIfOpen();
+            ShowExhibits = ShowVuz = ShowGrnti = ShowAll = false;
+            ShowNirGroups = true;
+            ReloadNirGroups();
+            RowCount = NirGroupRows.Count;
+            Status = "Группы НИР: выберите группу по её названию.";
+        }
 
         [RelayCommand]
         private void CreateNirGroup()
         {
-            var name = (NewNirGroupName ?? "").Trim();
-            if (name.Length == 0) { NirGroupMessage = "Введите название группы."; return; }
-            if (NirGroups.Any(group => string.Equals(group.Name, name, StringComparison.OrdinalIgnoreCase)))
-            { NirGroupMessage = "Группа с таким названием уже существует."; return; }
+            if (TryCreateNirGroup(NewNirGroupName, out var message))
+                NewNirGroupName = "";
+            NirGroupMessage = message;
+        }
+
+        private bool CanDeleteNirGroup() => SelectedNirGroup != null;
+
+        [RelayCommand(CanExecute = nameof(CanDeleteNirGroup))]
+        private async Task DeleteNirGroupAsync()
+        {
+            if (SelectedNirGroup is not { } group || ConfirmHandler is null) return;
             try
             {
-                var id = _nirGroupRepo.CreateGroup(name);
-                ReloadNirGroups(id);
-                NewNirGroupName = "";
-                NirGroupMessage = "Группа создана и сохранена в БД.";
+                int count = _nirGroupRepo.GetExhibitIds(group.Code).Count;
+                bool confirmed = await ConfirmHandler("Удаление группы НИР",
+                    $"Удалить группу «{group.Code}»?\n\n" +
+                    $"Выставок в группе: {count}.");
+                if (!confirmed) return;
+
+                bool deleted = _nirGroupRepo.DeleteGroup(group.Code);
+                SelectedNirGroup = null;
+                ReloadNirGroups();
+                Status = NirGroupMessage = deleted
+                    ? $"Группа «{group.Code}» удалена."
+                    : "Группа уже была удалена. Список обновлён.";
             }
-            catch (Exception ex) { NirGroupMessage = "Ошибка создания группы: " + ex.Message; }
+            catch (Exception ex)
+            {
+                Status = NirGroupMessage = "Ошибка удаления группы: " + ex.Message;
+            }
+        }
+
+        // Один путь проверки и сохранения для раздела групп и диалога «Новая…».
+        public bool TryCreateNirGroup(string name, out string message)
+        {
+            var code = (name ?? "").Trim();
+            if (code.Length == 0)
+            {
+                message = "Введите название группы.";
+                return false;
+            }
+            if (NirGroups.Any(group => string.Equals(group.Code, code, StringComparison.Ordinal)))
+            {
+                message = "Группа с таким названием уже существует.";
+                return false;
+            }
+            try
+            {
+                _nirGroupRepo.CreateGroup(code);
+                ReloadNirGroups(code);
+                message = $"Группа «{code}» создана.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                message = "Не удалось создать группу: " + ex.Message;
+                return false;
+            }
         }
 
         [RelayCommand(CanExecute = nameof(CanAddToNirGroup))]
@@ -6221,14 +6569,15 @@ namespace SQLWerk.ViewModels
 
         private async Task AddExhibitsToGroupAsync(long[] ids)
         {
-            if (ids.Length == 0 || SelectNirGroupHandler is null) return;
+            if (ids.Length == 0 || SelectNirGroupsHandler is null) return;
             try
             {
-                var group = await SelectNirGroupHandler();
-                if (group is null) return;
-                int added = _nirGroupRepo.AddMembers(group.Id, ids);
-                ReloadNirGroups(group.Id);
-                Status = NirGroupMessage = $"В группу «{group.Name}» добавлено: {added}. Уже были в группе: {ids.Length - added}.";
+                var selected = await SelectNirGroupsHandler();
+                if (selected is null || selected.Length == 0) return;
+                var codes = selected.Distinct(StringComparer.Ordinal).ToArray();
+                int added = _nirGroupRepo.AddMembers(codes, ids);
+                ReloadNirGroups();
+                Status = NirGroupMessage = $"";
             }
             catch (Exception ex) { Status = NirGroupMessage = "Ошибка добавления: " + ex.Message; }
         }
@@ -6261,39 +6610,46 @@ namespace SQLWerk.ViewModels
         [RelayCommand(CanExecute = nameof(CanRemoveFromNirGroup))]
         private void RemoveFromNirGroup()
         {
-            if (!CanRemoveFromNirGroup()) return;
-            var selected = SelectedGroupRows.ToArray();
+            if (!CanRemoveFromNirGroup() || SelectedNirGroup is not { } group) return;
+            var ids = SelectedGroupRows.Select(row => row.Exhibit.Id).Distinct().ToArray();
             try
             {
-                int removed = 0;
-                foreach (var group in selected.GroupBy(row => row.GroupId))
-                    removed += _nirGroupRepo.RemoveMembers(group.Key,
-                        group.Select(row => row.Exhibit.Id).Distinct().ToArray());
+                int removed = _nirGroupRepo.RemoveMembers(group.Code, ids);
                 RefreshNirGroup();
-                Status = NirGroupMessage = $"Из групп исключено: {removed}. Сами НИР сохранены.";
+                Status = NirGroupMessage = $"Из группы исключено: {removed}.";
             }
             catch (Exception ex) { RefreshNirGroup(); NirGroupMessage = "Ошибка исключения: " + ex.Message; }
         }
 
-        private void ReloadNirGroups(long? preferredId = null)
+        private void ReloadNirGroups(string? preferredCode = null)
         {
-            var id = preferredId ?? SelectedNirGroup?.Id;
+            var code = preferredCode ?? SelectedNirGroup?.Code;
             _nirGroupRepo.EnsureCreated();
             NirGroups = new ObservableCollection<NirGroup>(_nirGroupRepo.GetGroups());
-            SelectedNirGroup = NirGroups.FirstOrDefault(group => group.Id == id) ?? NirGroups.FirstOrDefault();
+            SelectedNirGroup = NirGroups.FirstOrDefault(group => group.Code == code);
             RefreshNirGroup();
         }
 
         private void RefreshNirGroup()
         {
             SelectedGroupRows = new();
-            var exhibits = FullTable.DistinctBy(row => row.Id).ToDictionary(row => row.Id);
-            var rows = new List<NirGroupEntry>();
-            foreach (var group in NirGroups)
-                foreach (var id in _nirGroupRepo.GetExhibitIds(group.Id))
-                    if (exhibits.TryGetValue(id, out var exhibit))
-                        rows.Add(new NirGroupEntry { GroupId = group.Id, GroupName = group.Name, Exhibit = exhibit });
-            NirGroupRows = new ObservableCollection<NirGroupEntry>(rows);
+            if (SelectedNirGroup is not { } group)
+            {
+                NirGroupRows = new();
+            }
+            else
+            {
+                var ids = _nirGroupRepo.GetExhibitIds(group.Code).ToHashSet();
+                NirGroupRows = new ObservableCollection<NirGroupEntry>(FullTable
+                    .Where(row => ids.Contains(row.Id)).DistinctBy(row => row.Id)
+                    .Select(row => new NirGroupEntry { GroupCode = group.Code, Exhibit = row }));
+            }
+            if (ShowNirGroups)
+            {
+                RowCount = NirGroupRows.Count;
+                Status = SelectedNirGroup is null ? "Выберите или создайте группу НИР."
+                    : $"Группа «{SelectedNirGroup.Code}»: {RowCount} строк";
+            }
         }
 
         public event EventHandler? ShowLogRequested;
@@ -6301,6 +6657,46 @@ namespace SQLWerk.ViewModels
         public Func<string, string, Task<bool>>? ConfirmHandler { get; set; }
         public Func<VuzTableRow?, Task<VuzTableRow?>>? VuzEditHandler { get; set; }
         public Func<ExhibitTableRow?, Task<ExhibitTableRow?>>? ExhibitEditHandler { get; set; }
+
+        private void ApplyFiltersAndRefreshStatus()
+        {
+            if (_updatingFilters) return;
+            ApplyFilters();
+            if (ShowAll)
+            {
+                RowCount = FilteredFull.Count;
+                Status = $"Вся информация (фильтр): {RowCount} строк";
+            }
+        }
+
+        private static IEnumerable<string> GetMainRubrics(string? value) => (value ?? "")
+            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(code => code.Trim())
+            .Where(code => code.Length >= 2)
+            .Select(code => code.Substring(0, 2))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        private void ApplyFilters()
+        {
+            var regions = RegionFilter.GetSelection();
+            var oblasts = OblFilter.GetSelection();
+            var cities = CityFilter.GetSelection();
+            var rubrics = GrntiFilter.GetSelection();
+            var exhibitTypes = ExhitypeFilter.GetSelection();
+            var types = TypeFilter.GetSelection();
+
+            static bool Matches(HashSet<string>? selected, string? value) =>
+                selected == null || selected.Contains((value ?? "").Trim());
+
+            FilteredFull = new ObservableCollection<FullModel>(FullTable.Where(row =>
+                Matches(regions, row.Region)
+                && Matches(oblasts, row.OblName)
+                && Matches(cities, row.City)
+                && Matches(exhibitTypes, row.Exhitype)
+                && Matches(types, row.Type)
+                && (rubrics == null || GetMainRubrics(row.Grnti)
+                    .DefaultIfEmpty("").Any(rubrics.Contains))));
+        }
 
         public MainWindowViewModel(
             ImportService<ExhibitTableRow> exhibitImport,
@@ -6330,6 +6726,9 @@ namespace SQLWerk.ViewModels
             _crossValidator = crossValidator;
             _batchDelete = batchDelete;
             _nirGroupRepo = nirGroupRepo;
+
+            foreach (var filter in Filters)
+                filter.SelectionChanged += (_, _) => ApplyFiltersAndRefreshStatus();
 
 
             _logProvider.Changed += OnLogChanged;
@@ -6474,6 +6873,8 @@ namespace SQLWerk.ViewModels
               .ToHashSet(StringComparer.Ordinal);
 
             ReloadNirGroups();
+            RefreshFilterOptions();
+            ApplyFilters();
             //SelectExhibitsCommand.Execute(null);
         }
         private static List<string> Options(IEnumerable<string?> values) => values
@@ -6504,6 +6905,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectExhibits()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowExhibits = true;
@@ -6519,9 +6921,34 @@ namespace SQLWerk.ViewModels
 
 
 
+        private void RefreshFilterOptions()
+        {
+            RegionFilter.SetValues(FullTable.Select(row => row.Region));
+            OblFilter.SetValues(FullTable.Select(row => row.OblName));
+            CityFilter.SetValues(FullTable.Select(row => row.City));
+            GrntiFilter.SetValues(FullTable.SelectMany(row =>
+                GetMainRubrics(row.Grnti).DefaultIfEmpty("")));
+            ExhitypeFilter.SetValues(FullTable.Select(row => row.Exhitype));
+            TypeFilter.SetValues(FullTable.Select(row => row.Type));
+        }
+
+        [RelayCommand]
+        private void ResetFilters()
+        {
+            _updatingFilters = true;
+            try
+            {
+                foreach (var filter in Filters)
+                    filter.Reset();
+            }
+            finally { _updatingFilters = false; }
+            ApplyFiltersAndRefreshStatus();
+        }
+
         [RelayCommand]
         public void SelectVuz()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowExhibits = false;
@@ -6536,6 +6963,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectGrnti()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowExhibits = false;
@@ -6550,6 +6978,7 @@ namespace SQLWerk.ViewModels
         [RelayCommand]
         public void SelectFull()
         {
+            ShowNirGroups = false;
             CloseErrorScreenIfOpen();
 
             ShowAll = true;
@@ -6557,7 +6986,8 @@ namespace SQLWerk.ViewModels
             ShowGrnti = false;
             ShowVuz = false;
 
-            RowCount = FullTable.Count;
+            ApplyFilters();
+            RowCount = FilteredFull.Count;
             Status = $"Вся информация: {RowCount} строк";
         }
 
