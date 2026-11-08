@@ -14,6 +14,7 @@ public partial class MainWindow : Window
 {
     private LogWindow? _logWindow;
     private MainWindowViewModel? _boundVm;
+    private bool _selectingGroupSuggestion;
 
     public MainWindow() => InitializeComponent();
 
@@ -81,6 +82,35 @@ public partial class MainWindow : Window
                 vm.SelectedGrntiRows = grid.SelectedItems.OfType<GrntiTableRow>().ToList();
                 break;
         }
+    }
+
+    private void OnGroupSuggestionSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_selectingGroupSuggestion || DataContext is not MainWindowViewModel vm) return;
+        var group = e.AddedItems.OfType<NirGroup>().FirstOrDefault();
+        if (group == null) return;
+        _selectingGroupSuggestion = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                // Complete the AutoCompleteBox text update before selecting the group.
+                vm.NirGroupSearch = "";
+                vm.NirGroupCommentSearch = "";
+                vm.SelectedNirGroup = vm.NirGroups.FirstOrDefault(g => g.Code == group.Code);
+                if (sender is AutoCompleteBox input) input.IsDropDownOpen = false;
+            }
+            finally { _selectingGroupSuggestion = false; }
+        }, DispatcherPriority.Background);
+    }
+
+    private async void OnNewNirGroupClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var button = sender as Button;
+        if (button != null) button.IsEnabled = false;
+        try { await new NewNirGroupWindow(vm).ShowDialog<string?>(this); }
+        finally { if (button != null) button.IsEnabled = true; }
     }
 
     private async Task<string[]?> ShowNirGroupPickerAsync()

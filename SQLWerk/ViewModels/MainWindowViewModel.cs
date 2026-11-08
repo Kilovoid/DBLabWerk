@@ -101,6 +101,17 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private ObservableCollection<NirGroup> _nirGroups = new();
         [ObservableProperty] private ObservableCollection<NirGroupEntry> _nirGroupRows = new();
         [ObservableProperty] private string _nirGroupSearch = "";
+        [ObservableProperty] private string _nirGroupCommentSearch = "";
+        [ObservableProperty] private bool _isEditingNirGroup;
+        partial void OnNirGroupCommentSearchChanged(string value) => FilterNirGroups();
+        private bool MatchesGroupSearch(NirGroup group)
+        {
+            var name = (NirGroupSearch ?? "").Trim();
+            var comment = (NirGroupCommentSearch ?? "").Trim();
+            return (name.Length == 0 || group.Code.Contains(name, StringComparison.OrdinalIgnoreCase))
+                && (comment.Length == 0 || group.Comment.Contains(comment, StringComparison.OrdinalIgnoreCase));
+        }
+        public bool HasNirGroupComment => !string.IsNullOrWhiteSpace(SelectedNirGroup?.Comment);
         [ObservableProperty] private ObservableCollection<NirGroup> _filteredNirGroups = new();
         [ObservableProperty] private string _groupRubrics = "Рубрики: —";
         [ObservableProperty] private string _groupRegions = "Регионы: —";
@@ -110,11 +121,7 @@ namespace SQLWerk.ViewModels
         private void FilterNirGroups()
         {
             var code = SelectedNirGroup?.Code ?? _preferredNirGroupCode;
-            var query = (NirGroupSearch ?? "").Trim();
-            // Always filter the complete source, never the previously filtered result.
-            var matches = (query.Length == 0 ? NirGroups : NirGroups.Where(g =>
-                g.Code.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || g.Comment.Contains(query, StringComparison.OrdinalIgnoreCase))).ToList();
+            var matches = NirGroups.Where(MatchesGroupSearch).ToList();
             FilteredNirGroups = new ObservableCollection<NirGroup>(matches);
             SelectedNirGroup = matches.FirstOrDefault(g => g.Code == code);
         }
@@ -127,9 +134,11 @@ namespace SQLWerk.ViewModels
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(DeleteNirGroupCommand))]
+        [NotifyCanExecuteChangedFor(nameof(BeginNirGroupEditCommand))]
         [NotifyCanExecuteChangedFor(nameof(SaveNirGroupCommand))]
         [NotifyCanExecuteChangedFor(nameof(ResetNirGroupEditCommand))]
         [NotifyPropertyChangedFor(nameof(HasSelectedNirGroup))]
+        [NotifyPropertyChangedFor(nameof(HasNirGroupComment))]
         private NirGroup? _selectedNirGroup;
 
         [ObservableProperty]
@@ -153,12 +162,22 @@ namespace SQLWerk.ViewModels
         {
             if (value != null) _preferredNirGroupCode = value.Code;
             ResetNirGroupEdit();
+            NirGroupMessage = "";
             RefreshNirGroup();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanDeleteNirGroup))]
+        private void BeginNirGroupEdit()
+        {
+            ResetNirGroupEdit();
+            NirGroupMessage = "";
+            IsEditingNirGroup = true;
         }
 
         [RelayCommand(CanExecute = nameof(CanDeleteNirGroup))]
         private void ResetNirGroupEdit()
         {
+            IsEditingNirGroup = false;
             EditedNirGroupName = SelectedNirGroup?.Code ?? "";
             EditedNirGroupComment = SelectedNirGroup?.Comment ?? "";
         }
@@ -175,6 +194,7 @@ namespace SQLWerk.ViewModels
             {
                 _nirGroupRepo.UpdateGroup(group.Code, name, EditedNirGroupComment);
                 NirGroupSearch = "";
+                NirGroupCommentSearch = "";
                 ReloadNirGroups(name);
                 NirGroupMessage = "Группа сохранена.";
             }
@@ -251,6 +271,7 @@ namespace SQLWerk.ViewModels
             {
                 _nirGroupRepo.CreateGroup(code, comment);
                 NirGroupSearch = "";
+                NirGroupCommentSearch = "";
                 ReloadNirGroups(code);
                 message = $"Группа «{code}» создана.";
                 return true;
@@ -336,10 +357,7 @@ namespace SQLWerk.ViewModels
             _nirGroupRepo.EnsureCreated();
             NirGroups = new ObservableCollection<NirGroup>(_nirGroupRepo.GetGroups());
             _preferredNirGroupCode = code;
-            var query = (NirGroupSearch ?? "").Trim();
-            FilteredNirGroups = new ObservableCollection<NirGroup>(query.Length == 0 ? NirGroups : NirGroups.Where(g =>
-                g.Code.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || g.Comment.Contains(query, StringComparison.OrdinalIgnoreCase)));
+            FilteredNirGroups = new ObservableCollection<NirGroup>(NirGroups.Where(MatchesGroupSearch));
             SelectedNirGroup = FilteredNirGroups.FirstOrDefault(group => group.Code == code);
             RefreshNirGroup();
         }
