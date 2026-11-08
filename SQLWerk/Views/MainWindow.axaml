@@ -300,7 +300,7 @@
                             </AutoCompleteBox>
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left">
-                            <ComboBox ItemsSource="{Binding FilteredNirGroups}" SelectedItem="{Binding SelectedNirGroup, Mode=TwoWay}"
+                            <ComboBox x:Name="GroupSelector" ItemsSource="{Binding FilteredNirGroups}" SelectedItem="{Binding SelectedNirGroup, Mode=TwoWay}"
                                       Width="320" HorizontalAlignment="Left" HorizontalContentAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate x:DataType="models:NirGroup">
@@ -314,7 +314,7 @@
                             </Button>
                         </StackPanel>
                         <Border Height="1" Background="#D6DCE2" Margin="0,2,0,4"/>
-                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasSelectedNirGroup}" Margin="0,0,0,8">
+                    <Grid x:Name="SelectedGroupHeader" ColumnDefinitions="*,Auto" IsVisible="{Binding HasSelectedNirGroup}" Margin="0,0,0,8">
                                     <Border Background="#F0F7FD" BorderBrush="#B7D8F1" BorderThickness="1" CornerRadius="4" Padding="12,10">
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="{Binding SelectedNirGroup.Code}" FontSize="20" FontWeight="SemiBold" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SelectedNirGroup.Code}"/>

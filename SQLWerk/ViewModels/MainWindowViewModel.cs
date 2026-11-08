@@ -67,6 +67,7 @@ namespace SQLWerk.ViewModels
         public ProjectFiltersViewModel ProjectFilters { get; } = new();
         private bool _updatingFilters;
         public event Action<string, long>? NavigateToRecordRequested;
+        public event Action<string>? NavigateToGroupRequested;
 
         [ObservableProperty] private ObservableCollection<FullModel> _filteredFull = new();
 
@@ -274,6 +275,7 @@ namespace SQLWerk.ViewModels
                 NirGroupCommentSearch = "";
                 ReloadNirGroups(code);
                 message = $"Группа «{code}» создана.";
+                NavigateToGroupRequested?.Invoke(code);
                 return true;
             }
             catch (Exception ex)
