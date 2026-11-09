@@ -13,8 +13,23 @@
                 <GradientStop Offset="0" Color="#FFFFFF"/><GradientStop Offset="1" Color="#E3E8EE"/>
             </LinearGradientBrush></Setter>
         </Style>
-        <Style Selector="Button.filter.active"><Setter Property="BorderBrush" Value="#3078B8"/>
-            <Setter Property="Foreground" Value="#14558B"/></Style>
+        <Style Selector="Button.filter.active">
+            <Setter Property="Background" Value="#C8E5FA"/>
+            <Setter Property="BorderBrush" Value="#48A9E6"/>
+            <Setter Property="Foreground" Value="#14558B"/>
+        </Style>
+        <Style Selector="Button.filter.active /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#C8E5FA"/>
+            <Setter Property="BorderBrush" Value="#48A9E6"/>
+        </Style>
+        <Style Selector="Button.filter.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#B9DFF7"/>
+            <Setter Property="BorderBrush" Value="#3498DB"/>
+        </Style>
+        <Style Selector="Button.filter.active:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#A8D6F3"/>
+            <Setter Property="BorderBrush" Value="#3078B8"/>
+        </Style>
         <Style Selector="CheckBox.value"><Setter Property="MinHeight" Value="0"/>
             <Setter Property="Padding" Value="0"/><Setter Property="FontSize" Value="12"/></Style>
         <Style Selector="Button.popup"><Setter Property="MinHeight" Value="0"/>

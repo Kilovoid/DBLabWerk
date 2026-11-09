@@ -23,8 +23,6 @@ public class ProjectFiltersViewModel : ObservableObject
         Add("Полное название вуза", r => r.Z1Full);
         Add("Краткое название вуза", r => r.Z2);
         _fields.Add(new(new("Рубрика"), r => Codes(r.Grnti).Select(c => c.Substring(0, 2)).DefaultIfEmpty("")));
-        _fields.Add(new(new("Подрубрика"), r => Codes(r.Grnti).SelectMany(c => c.Length > 2
-            ? new[] { c.Length >= 5 ? c.Substring(0, 5) : c, c } : new[] { "" }).DefaultIfEmpty("")));
         _fields.Add(new(new("ГРНТИ"), r => Codes(r.Grnti).DefaultIfEmpty("")));
         Add("Название рубрики", r => r.Rubrika);
         Add("Форма НИР", r => r.Type);
@@ -55,10 +53,7 @@ public class ProjectFiltersViewModel : ObservableObject
     public Func<FullModel, bool> CreatePredicate()
     {
         var conditions = _fields.Select(f => (Field: f, Selection: f.Filter.GetSelection())).Where(c => c.Selection != null).ToArray();
-        var rubrics = this["Рубрика"].GetSelection(); var subs = this["Подрубрика"].GetSelection();
-        return row => conditions.All(c => c.Field.Values(row).Any(c.Selection!.Contains))
-            && (rubrics == null || subs == null || Codes(row.Grnti).Any(code => rubrics.Contains(code.Substring(0, 2))
-                && subs.Any(sub => sub.Length == 0 ? code.Length == 2 : code == sub || code.StartsWith(sub + ".", StringComparison.OrdinalIgnoreCase))));
+        return row => conditions.All(c => c.Field.Values(row).Any(c.Selection!.Contains));
     }
     public void Reset() { foreach (var field in _fields) field.Filter.Reset(); }
 }
