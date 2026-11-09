@@ -142,6 +142,18 @@ internal sealed class NirGroupRepository : INirGroupRepository
         return command.ExecuteNonQuery() > 0;
     }
 
+    public void ClearGroups()
+    {
+        using var connection = _factory.Create();
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "DELETE FROM NirGroupMembers; DELETE FROM NirGroups;";
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
     public List<long> GetExhibitIds(string groupCode)
     {
         using var connection = _factory.Create();
