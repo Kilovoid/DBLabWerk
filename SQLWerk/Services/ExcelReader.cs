@@ -1,4 +1,4 @@
-﻿using ExcelDataReader;
+using ExcelDataReader;
 using Microsoft.Extensions.Logging;
 using SQLWerk.Data.Abstractions;
 using SQLWerk.Models;

@@ -547,6 +547,12 @@ namespace SQLWerk.ViewModels
             ExhibitEditViewModel.VuzSuggestions = ExhibitEditViewModel.VuzNames.Where(v => v.Key > 0).OrderBy(v => v.Key)
                 .Select(v => new VuzCodeSuggestion(v.Key.ToString(), v.Value)).ToList();
 
+            ExhibitEditViewModel.GrntiNames = Grnti
+                .Where(g => (g.Codrub ?? "").Trim().Length == 2)
+                .GroupBy(g => g.Codrub!.Trim())
+                .ToDictionary(g => g.Key, g => g.Select(row => (row.Rubrika ?? "").Trim())
+                    .FirstOrDefault(name => name.Length > 0) ?? "");
+
             ExhibitEditViewModel.GrntiRubrics = Grnti
                 .Select(g => g.Codrub ?? "")
                 .Where(c => c.Length == 2)

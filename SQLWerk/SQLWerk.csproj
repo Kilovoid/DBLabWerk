@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>SQLWerk</RootNamespace>
     <OutputType>WinExe</OutputType>
@@ -35,13 +35,7 @@
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.12" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EditorConfigFiles Remove="E:\SQLWerk\SQLWerk\.editorconfig" />
-  </ItemGroup>
 
-  <ItemGroup>
-    <None Include="E:\SQLWerk\SQLWerk\.editorconfig" />
-  </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Styles\" />

@@ -18,12 +18,18 @@ public partial class MainWindow : Window
     private LogWindow? _logWindow;
     private MainWindowViewModel? _boundVm;
     private Action? _pendingNavigation;
+    private bool _groupTableScrollActive;
+    private bool _activationClickPending;
     private readonly HashSet<Window> _navigationDialogs = new();
 
     public MainWindow()
     {
         InitializeComponent();
-        // Let inner viewers handle the wheel first, then prevent propagation to the page.
+        AddHandler(InputElement.PointerWheelChangedEvent, OnGroupPageWheel, RoutingStrategies.Tunnel);
+        AddHandler(InputElement.PointerPressedEvent, OnPagePointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(InputElement.PointerReleasedEvent, OnPagePointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(InputElement.KeyDownEvent, OnGroupTableEscape, RoutingStrategies.Tunnel);
+        // Once activated, the table consumes its own wheel events, including at its edges.
         this.FindControl<DataGrid>("NirGroupsGrid")?.AddHandler(
             InputElement.PointerWheelChangedEvent, (_, e) => e.Handled = true,
             RoutingStrategies.Bubble, handledEventsToo: true);
@@ -32,20 +38,81 @@ public partial class MainWindow : Window
             RoutingStrategies.Bubble, handledEventsToo: true);
         // The grid scrolls its rows; row focus must not scroll the whole group page.
         this.FindControl<DataGrid>("NirGroupsGrid")?.AddHandler(
-            InputElement.PointerPressedEvent, OnGroupRightClick, RoutingStrategies.Tunnel);
-        this.FindControl<DataGrid>("NirGroupsGrid")?.AddHandler(
             Control.RequestBringIntoViewEvent, (_, e) => e.Handled = true,
             RoutingStrategies.Bubble);
     }
 
-    private void OnGroupRightClick(object? sender, PointerPressedEventArgs e)
+    private bool IsInGroupTable(object? source)
     {
-        if (sender is not DataGrid grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        var grid = this.FindControl<DataGrid>("NirGroupsGrid");
+        return source is Control control && (ReferenceEquals(control, grid) || control.FindAncestorOfType<DataGrid>() == grid);
+    }
+
+    private void SetGroupTableActive(bool active)
+    {
+        _groupTableScrollActive = active;
+        var grid = this.FindControl<DataGrid>("NirGroupsGrid");
+        if (grid == null) return;
+        if (active) grid.Classes.Add("scroll-active");
+        else grid.Classes.Remove("scroll-active");
+    }
+
+    private void OnPagePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _activationClickPending = false;
+        if (!IsInGroupTable(e.Source)) SetGroupTableActive(false);
+        else OnGroupTablePressed(this.FindControl<DataGrid>("NirGroupsGrid"), e);
+    }
+
+    private void OnGroupPageWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (_groupTableScrollActive || !IsInGroupTable(e.Source)) return;
+        if (this.FindControl<ScrollViewer>("GroupDetailsScroll") is not { } page) return;
+        var max = Math.Max(0, page.Extent.Height - page.Viewport.Height);
+        page.Offset = new Avalonia.Vector(page.Offset.X, Math.Clamp(page.Offset.Y - e.Delta.Y * 48, 0, max));
+        // Do not allow the inactive table to consume the wheel: it scrolls the page instead.
+        e.Handled = true;
+    }
+
+    private void OnGroupTablePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not DataGrid grid) return;
+        if (!_groupTableScrollActive)
+        {
+            SetGroupTableActive(true);
+            _activationClickPending = true;
+            grid.SelectedItems.Clear();
+            grid.Focus();
+            grid.SelectedItems.Clear();
+            e.Handled = true;
+            return;
+        }
+        if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
         var control = e.Source as Control;
         var row = control as DataGridRow ?? control?.FindAncestorOfType<DataGridRow>();
         if (row?.DataContext is not NirGroupEntry entry || grid.SelectedItems.Contains(entry)) return;
         grid.SelectedItems.Clear();
         grid.SelectedItem = entry;
+    }
+
+    private void OnPagePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_activationClickPending) return;
+        _activationClickPending = false;
+        this.FindControl<DataGrid>("NirGroupsGrid")?.SelectedItems.Clear();
+        e.Handled = true;
+    }
+
+    private void OnGroupTableEscape(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || DataContext is not MainWindowViewModel { ShowNirGroups: true }) return;
+        if (this.FindControl<NirGroupSelectorView>("GroupSelector")?.IsDropDownOpen == true) return;
+        var grid = this.FindControl<DataGrid>("NirGroupsGrid");
+        if (!_groupTableScrollActive && (grid == null || grid.SelectedItems.Count == 0)) return;
+        grid?.SelectedItems.Clear();
+        _activationClickPending = false;
+        SetGroupTableActive(false);
+        e.Handled = true;
     }
 
     protected override void OnDataContextChanged(EventArgs e)
