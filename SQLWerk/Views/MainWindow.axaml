@@ -250,6 +250,10 @@
 			
                 <Grid x:Name="GroupsWorkspace" IsVisible="{Binding ShowNirGroups}" RowDefinitions="*" Margin="8">
                     <Grid.Styles>
+                        <Style Selector="DataGrid.scroll-active">
+                            <Setter Property="BorderBrush" Value="#48A9E6"/>
+                            <Setter Property="BorderThickness" Value="2"/>
+                        </Style>
                         <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
                             <Setter Property="Background" Value="#DDF0FC"/>
                             <Setter Property="BorderBrush" Value="#48A9E6"/>
@@ -268,7 +272,7 @@
                     </Grid.Styles>
                     <ScrollViewer x:Name="GroupDetailsScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" IsScrollChainingEnabled="True">
-                    <StackPanel Spacing="8" Margin="0,0,8,8">
+                    <StackPanel Spacing="8" Margin="0,0,8,0">
                     <Border Padding="0,0,0,8" Margin="0,0,0,6" BorderThickness="0,0,0,1" BorderBrush="#D6DCE2">
                         <views:NirGroupSelectorView x:Name="GroupSelector"/>
                     </Border>
@@ -324,7 +328,7 @@
                             </StackPanel>
                         </Border>
                         <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
-                    <DataGrid x:Name="NirGroupsGrid" ItemsSource="{Binding NirGroupRows}" Height="280"
+                    <DataGrid x:Name="NirGroupsGrid" ItemsSource="{Binding NirGroupRows}" Height="{Binding #GroupDetailsScroll.Viewport.Height}"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.IsScrollChainingEnabled="False"
                               SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"

@@ -10,6 +10,11 @@ using System.Text.RegularExpressions;
 
 namespace SQLWerk.ViewModels;
 
+public sealed record GrntiRubricSuggestion(string Code, string Name)
+{
+    public string Label => string.IsNullOrWhiteSpace(Name) ? Code : $"{Code} — {Name}";
+}
+
 public partial class GrntiEntryVM : ObservableObject
 {
     [ObservableProperty] private string _rubric = "";
@@ -26,6 +31,10 @@ public partial class ExhibitEditViewModel : ObservableObject
     public static List<string> VuzCodes { get; set; } = new();
     public static List<VuzCodeSuggestion> VuzSuggestions { get; set; } = new();
     public static List<string> GrntiRubrics { get; set; } = new();
+    public static Dictionary<string, string> GrntiNames { get; set; } = new();
+    public static List<GrntiRubricSuggestion> GrntiSuggestions => GrntiRubrics
+        .Select(code => new GrntiRubricSuggestion(code, GrntiNames.GetValueOrDefault(code, "")))
+        .ToList();
 
     public static readonly string[] TypeOptions =
     {

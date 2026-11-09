@@ -1,21 +1,31 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SQLWerk.ViewModels" xmlns:models="using:SQLWerk.Models"
-             x:Class="SQLWerk.Views.NirGroupSelectorView" x:DataType="vm:MainWindowViewModel">
-    <Border Height="170" Padding="8" Background="#F7FBFE" BorderBrush="#B7D8F1" BorderThickness="1" CornerRadius="4">
-        <Grid RowDefinitions="Auto,*,Auto">
-            <TextBox x:Name="GroupSearch" PlaceholderText="Поиск по названию и комментарию" TextChanged="OnSearchChanged"/>
-            <ListBox x:Name="GroupChoices" Grid.Row="1" Margin="0,5" SelectionMode="Single"
-                     SelectionChanged="OnGroupChosen" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     ScrollViewer.IsScrollChainingEnabled="False">
-                <ListBox.ItemTemplate><DataTemplate x:DataType="models:NirGroup">
-                    <StackPanel Spacing="2" Margin="2">
-                        <TextBlock Text="{Binding Code}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Comment}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                                   FontSize="12" ToolTip.Tip="{Binding Comment}"/>
-                    </StackPanel>
-                </DataTemplate></ListBox.ItemTemplate>
-            </ListBox>
-            <Button Grid.Row="2" Content="Создать группу" Click="OnCreate" HorizontalAlignment="Left"/>
-        </Grid>
-    </Border>
+             xmlns:primitives="clr-namespace:Avalonia.Controls.Primitives;assembly=Avalonia.Controls"
+             x:Class="SQLWerk.Views.NirGroupSelectorView" x:DataType="vm:MainWindowViewModel"
+             Focusable="True" KeyDown="OnSearchKeyDown">
+    <Grid x:Name="SelectorField" ColumnDefinitions="*,Auto" HorizontalAlignment="Stretch">
+        <TextBox x:Name="GroupSearch" PlaceholderText="Поиск группы по названию и комментарию"
+                 TextChanged="OnSearchChanged" GotFocus="OnSearchFocused"/>
+        <Button Grid.Column="1" Content="▾" Click="OnToggle" Padding="10,3" ToolTip.Tip="Выбрать группу"/>
+        <primitives:Popup x:Name="GroupPopup" Placement="Bottom" IsLightDismissEnabled="True">
+            <Border x:Name="ChoicesPanel" Width="640" Padding="8" Background="White" BorderBrush="#B7D8F1"
+                    BorderThickness="1" CornerRadius="4" KeyDown="OnSearchKeyDown">
+                <StackPanel Spacing="8">
+                    <ListBox x:Name="GroupChoices" Height="360" SelectionMode="Single"
+                             SelectionChanged="OnGroupChosen" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.IsScrollChainingEnabled="False">
+                        <ListBox.ItemTemplate><DataTemplate x:DataType="models:NirGroup">
+                            <StackPanel Spacing="3" Margin="3">
+                                <TextBlock Text="{Binding Code}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Comment}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                           FontSize="12" ToolTip.Tip="{Binding Comment}"/>
+                            </StackPanel>
+                        </DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
+                    <Separator/>
+                    <Button Content="Создать группу" Click="OnCreate" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+        </primitives:Popup>
+    </Grid>
 </UserControl>

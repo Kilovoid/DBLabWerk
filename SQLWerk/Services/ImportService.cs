@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using SQLWerk.Data.Abstractions;
 using System;
 using System.Collections.Generic;

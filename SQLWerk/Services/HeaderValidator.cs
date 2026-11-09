@@ -1,4 +1,4 @@
-﻿using SQLWerk.Data.Abstractions;
+using SQLWerk.Data.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.IO;

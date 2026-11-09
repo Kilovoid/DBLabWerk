@@ -40,11 +40,18 @@
                     <DataTemplate DataType="vm:GrntiEntryVM">
                         <Grid ColumnDefinitions="*,8,*" Margin="0,0,0,4">
                             <AutoCompleteBox Grid.Column="0"
-                                      ItemsSource="{x:Static vm:ExhibitEditViewModel.GrntiRubrics}"
+                                      ItemsSource="{x:Static vm:ExhibitEditViewModel.GrntiSuggestions}"
+                                      ValueMemberBinding="{ReflectionBinding Code}"
                                       Text="{Binding Rubric, Mode=TwoWay}"
                                       FilterMode="Contains" MinimumPrefixLength="1"
                                       IsTextCompletionEnabled="False"
-                                      HorizontalAlignment="Stretch"/>
+                                      HorizontalAlignment="Stretch">
+                                <AutoCompleteBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:GrntiRubricSuggestion">
+                                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </AutoCompleteBox.ItemTemplate>
+                            </AutoCompleteBox>
                             <MaskedTextBox Grid.Column="2"
                                 Mask="00\.99"
                                 Text="{Binding Sub, Mode=TwoWay}"
