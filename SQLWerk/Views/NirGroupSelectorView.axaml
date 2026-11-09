@@ -5,7 +5,7 @@
              Focusable="True" KeyDown="OnSearchKeyDown">
     <Grid x:Name="SelectorField" ColumnDefinitions="*,Auto" HorizontalAlignment="Stretch">
         <TextBox x:Name="GroupSearch" PlaceholderText="Поиск группы по названию и комментарию"
-                 TextChanged="OnSearchChanged" GotFocus="OnSearchFocused"/>
+                 TextChanged="OnSearchChanged" PointerPressed="OnSearchPressed"/>
         <Button Grid.Column="1" Content="▾" Click="OnToggle" Padding="10,3" ToolTip.Tip="Выбрать группу"/>
         <primitives:Popup x:Name="GroupPopup" Placement="Bottom" IsLightDismissEnabled="True">
             <Border x:Name="ChoicesPanel" Width="640" Padding="8" Background="White" BorderBrush="#B7D8F1"
