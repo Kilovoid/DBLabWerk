@@ -248,7 +248,7 @@
 					</DataGrid>
 				</Grid>
 			
-                <Grid IsVisible="{Binding ShowNirGroups}" RowDefinitions="*" Margin="8">
+                <Grid x:Name="GroupsWorkspace" IsVisible="{Binding ShowNirGroups}" RowDefinitions="*" Margin="8">
                     <Grid.Styles>
                         <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
                             <Setter Property="Background" Value="#DDF0FC"/>
@@ -266,78 +266,52 @@
                             <Setter Property="Background" Value="#C8E5FA"/>
                         </Style>
                     </Grid.Styles>
-                    <ScrollViewer x:Name="GroupPageScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer x:Name="GroupDetailsScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled" IsScrollChainingEnabled="True">
                     <StackPanel Spacing="8" Margin="0,0,8,8">
-                        <Grid ColumnDefinitions="*,*">
-                            <AutoCompleteBox x:Name="GroupNameSearch" Text="{Binding NirGroupSearch, Mode=TwoWay}"
-                                             ItemsSource="{Binding NirGroups}" ValueMemberBinding="{ReflectionBinding Code}"
-                                             FilterMode="Contains" MinimumPrefixLength="1" IsTextCompletionEnabled="False"
-                                             MaxDropDownHeight="280" PlaceholderText="Поиск по названию" Margin="0,0,8,0"
-                                             SelectionChanged="OnGroupSuggestionSelected">
-                                <AutoCompleteBox.ItemTemplate>
-                                    <DataTemplate x:DataType="models:NirGroup">
-                                        <StackPanel Spacing="3" MaxWidth="450" Margin="2,4">
-                                            <TextBlock Text="{Binding Code}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding Comment}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="12"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </AutoCompleteBox.ItemTemplate>
-                            </AutoCompleteBox>
-                            <AutoCompleteBox x:Name="GroupCommentSearch" Grid.Column="1" Text="{Binding NirGroupCommentSearch, Mode=TwoWay}"
-                                             ItemsSource="{Binding NirGroups}" ValueMemberBinding="{ReflectionBinding Comment}"
-                                             FilterMode="Contains" MinimumPrefixLength="1" IsTextCompletionEnabled="False"
-                                             MaxDropDownHeight="280" PlaceholderText="Поиск по комментарию"
-                                             SelectionChanged="OnGroupSuggestionSelected">
-                                <AutoCompleteBox.ItemTemplate>
-                                    <DataTemplate x:DataType="models:NirGroup">
-                                        <StackPanel Spacing="3" MaxWidth="450" Margin="2,4">
-                                            <TextBlock Text="{Binding Comment}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding Code}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </AutoCompleteBox.ItemTemplate>
-                            </AutoCompleteBox>
-                        </Grid>
-                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left">
-                            <ComboBox x:Name="GroupSelector" ItemsSource="{Binding FilteredNirGroups}" SelectedItem="{Binding SelectedNirGroup, Mode=TwoWay}"
-                                      Width="320" HorizontalAlignment="Left" HorizontalContentAlignment="Stretch">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate x:DataType="models:NirGroup">
-                                        <TextBlock Text="{Binding Code}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Comment}"/>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <Button Click="OnNewNirGroupClick" Width="34" Height="34" Padding="8" ToolTip.Tip="Создать группу"
-                                    AutomationProperties.Name="Создать группу">
-                                <PathIcon Width="16" Height="16" Data="F0 M14,2 H6 C4.9,2 4,2.9 4,4 V20 C4,21.1 4.9,22 6,22 H18 C19.1,22 20,21.1 20,20 V8 L14,2 Z M16,16 H13 V19 H11 V16 H8 V14 H11 V11 H13 V14 H16 V16 Z M13,9 V3.5 L18.5,9 H13 Z"/>
-                            </Button>
-                        </StackPanel>
-                        <Border Height="1" Background="#D6DCE2" Margin="0,2,0,4"/>
+                    <Border Padding="0,0,0,8" Margin="0,0,0,6" BorderThickness="0,0,0,1" BorderBrush="#D6DCE2">
+                        <views:NirGroupSelectorView x:Name="GroupSelector"/>
+                    </Border>
                     <Grid x:Name="SelectedGroupHeader" ColumnDefinitions="*,Auto" IsVisible="{Binding HasSelectedNirGroup}" Margin="0,0,0,8">
                                     <Border Background="#F0F7FD" BorderBrush="#B7D8F1" BorderThickness="1" CornerRadius="4" Padding="12,10">
                                     <StackPanel Spacing="4">
-                                        <TextBlock Text="{Binding SelectedNirGroup.Code}" FontSize="20" FontWeight="SemiBold" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SelectedNirGroup.Code}"/>
-                                        <TextBlock Text="{Binding SelectedNirGroup.Comment}" IsVisible="{Binding HasNirGroupComment}"
-                                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="13" ToolTip.Tip="{Binding SelectedNirGroup.Comment}"/>
+                                        <Grid>
+                                            <TextBlock Text="{Binding SelectedNirGroup.Code}" IsVisible="{Binding !IsEditingNirGroup}"
+                                                       FontSize="20" FontWeight="SemiBold" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding SelectedNirGroup.Code}"/>
+                                            <TextBox Text="{Binding EditedNirGroupName, Mode=TwoWay}" IsVisible="{Binding IsEditingNirGroup}"
+                                                     PlaceholderText="Название" FontSize="20" FontWeight="SemiBold"/>
+                                        </Grid>
+                                        <Grid>
+                                            <StackPanel IsVisible="{Binding !IsEditingNirGroup}">
+                                                <TextBlock Text="{Binding SelectedNirGroup.Comment}" IsVisible="{Binding HasNirGroupComment}"
+                                                           TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" FontSize="13"
+                                                           ToolTip.Tip="{Binding SelectedNirGroup.Comment}"/>
+                                            </StackPanel>
+                                            <TextBox x:Name="GroupCommentEditor" Text="{Binding EditedNirGroupComment, Mode=TwoWay}"
+                                                     IsVisible="{Binding IsEditingNirGroup}" PlaceholderText="Комментарий" FontSize="13"
+                                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="55" MaxHeight="100"/>
+                                        </Grid>
+                                        <StackPanel IsVisible="{Binding IsEditingNirGroup}" Orientation="Horizontal" Spacing="8"
+                                                    HorizontalAlignment="Right" Margin="0,4,0,0">
+                                            <Button Content="Сохранить" Command="{Binding SaveNirGroupCommand}"/>
+                                            <Button Content="Отмена" Command="{Binding ResetNirGroupEditCommand}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                     </Border>
-                                    <Button Grid.Column="1" Command="{Binding BeginNirGroupEditCommand}" IsEnabled="{Binding !IsEditingNirGroup}" VerticalAlignment="Top" Margin="6,0,0,0"
+                                    <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Top" Margin="6,0,0,0">
+                                    <Button Command="{Binding BeginNirGroupEditCommand}" IsEnabled="{Binding !IsEditingNirGroup}" VerticalAlignment="Top" Margin="0"
                                             Width="34" Height="34" Padding="8" ToolTip.Tip="Редактировать" AutomationProperties.Name="Редактировать группу">
                                             <PathIcon Width="14" Height="14" Data="M3,17.25 V21 H6.75 L17.81,9.94 L14.06,6.19 Z M20.71,7.04 C21.1,6.65 21.1,6.02 20.71,5.63 L18.37,3.29 C17.98,2.9 17.35,2.9 16.96,3.29 L15.13,5.12 L18.88,8.87 Z"/>
                                     </Button>
+                                        <Button Command="{Binding DeleteNirGroupCommand}" Width="34" Height="34" Padding="8"
+                                                ToolTip.Tip="Удалить группу" AutomationProperties.Name="Удалить группу">
+                                            <PathIcon Width="15" Height="15" Data="F0 M9,3 H15 V5 H21 V7 H3 V5 H9 Z M5,9 H19 V20 C19,21.1 18.1,22 17,22 H7 C5.9,22 5,21.1 5,20 Z M9,11 V19 H11 V11 Z M13,11 V19 H15 V11 Z"/>
+                                        </Button>
+                                    </StackPanel>
                                 </Grid>
                         <Border IsVisible="{Binding HasSelectedNirGroup}">
                             <StackPanel Spacing="8">
-                                <StackPanel IsVisible="{Binding IsEditingNirGroup}" Spacing="6">
-                                    <TextBox Text="{Binding EditedNirGroupName, Mode=TwoWay}" PlaceholderText="Название"/>
-                                    <TextBox Text="{Binding EditedNirGroupComment, Mode=TwoWay}" PlaceholderText="Комментарий"
-                                             AcceptsReturn="True" TextWrapping="Wrap" MinHeight="55" MaxHeight="100"/>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                                        <Button Content="Сохранить" Command="{Binding SaveNirGroupCommand}"/>
-                                        <Button Content="Отмена" Command="{Binding ResetNirGroupEditCommand}"/>
-                                    </StackPanel>
-                                </StackPanel>
                                 <Expander Header="Информация" IsExpanded="True" HorizontalAlignment="Stretch"
                                           HorizontalContentAlignment="Stretch">
                                         <StackPanel Spacing="4">
@@ -349,16 +323,17 @@
                                 </Expander>
                             </StackPanel>
                         </Border>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Убрать выбранные из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
-                            <Button Content="Удалить группу" Command="{Binding DeleteNirGroupCommand}"/>
-                        </StackPanel>
                         <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
-                    <DataGrid x:Name="NirGroupsGrid" ItemsSource="{Binding NirGroupRows}"
-                              Height="{Binding #GroupPageScroll.Viewport.Height}" MinHeight="220"
-                              ScrollViewer.IsScrollChainingEnabled="True"
+                    <DataGrid x:Name="NirGroupsGrid" ItemsSource="{Binding NirGroupRows}" Height="280"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.IsScrollChainingEnabled="False"
                               SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"
                               AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Убрать из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
                         <DataGrid.Columns>
 							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Exhibit.Regnumber}" />
 							<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Exhibit.Type}" />

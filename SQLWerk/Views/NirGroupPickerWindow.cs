@@ -42,7 +42,7 @@ public partial class NirGroupPickerWindow : Window
     public NirGroupPickerWindow(MainWindowViewModel vm) : this()
     {
         _vm = vm;
-        RefreshOptions(vm.SelectedNirGroup?.Code);
+        RefreshOptions();
     }
 
     private void RefreshOptions(string? selectCode = null)

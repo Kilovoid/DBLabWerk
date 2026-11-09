@@ -47,7 +47,7 @@ public class ProjectFiltersViewModel : ObservableObject
     {
         var data = rows.ToList();
         var names = vuzes.GroupBy(v => v.Codvuz.ToString()).ToDictionary(g => g.Key,
-            g => (string.IsNullOrWhiteSpace(g.First().Z1Full) ? g.First().Z1 : g.First().Z1Full) ?? g.First().Z2 ?? "");
+            g => (g.First().Z2 ?? "").Trim());
         foreach (var field in _fields)
             field.Filter.SetValues(data.SelectMany(field.Values), field.Filter.Title == "Код вуза"
                 ? code => names.TryGetValue(code, out var name) ? $"{code} — {name}" : code : null);

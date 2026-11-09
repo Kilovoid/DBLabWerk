@@ -114,7 +114,7 @@ namespace SQLWerk.ViewModels
         }
         public bool HasNirGroupComment => !string.IsNullOrWhiteSpace(SelectedNirGroup?.Comment);
         [ObservableProperty] private ObservableCollection<NirGroup> _filteredNirGroups = new();
-        [ObservableProperty] private string _groupRubrics = "Рубрики: —";
+        [ObservableProperty] private string _groupRubrics = "Темы: —";
         [ObservableProperty] private string _groupRegions = "Регионы: —";
         [ObservableProperty] private string _groupDistricts = "Федеральные округа: —";
         partial void OnNirGroupSearchChanged(string value) => FilterNirGroups();
@@ -130,6 +130,7 @@ namespace SQLWerk.ViewModels
         [ObservableProperty] private string _editedNirGroupName = "";
         [ObservableProperty] private string _editedNirGroupComment = "";
         public bool HasSelectedNirGroup => SelectedNirGroup != null;
+        public string GroupSelectorLabel => SelectedNirGroup?.Code ?? "Выберите группу";
         [ObservableProperty] private string _newNirGroupName = "";
         [ObservableProperty] private string _nirGroupMessage = "";
 
@@ -139,6 +140,7 @@ namespace SQLWerk.ViewModels
         [NotifyCanExecuteChangedFor(nameof(SaveNirGroupCommand))]
         [NotifyCanExecuteChangedFor(nameof(ResetNirGroupEditCommand))]
         [NotifyPropertyChangedFor(nameof(HasSelectedNirGroup))]
+        [NotifyPropertyChangedFor(nameof(GroupSelectorLabel))]
         [NotifyPropertyChangedFor(nameof(HasNirGroupComment))]
         private NirGroup? _selectedNirGroup;
 
@@ -340,12 +342,15 @@ namespace SQLWerk.ViewModels
         }
 
         [RelayCommand(CanExecute = nameof(CanRemoveFromNirGroup))]
-        private void RemoveFromNirGroup()
+        private async Task RemoveFromNirGroupAsync()
         {
-            if (!CanRemoveFromNirGroup() || SelectedNirGroup is not { } group) return;
+            if (!CanRemoveFromNirGroup() || SelectedNirGroup is not { } group || ConfirmHandler is null) return;
             var ids = SelectedGroupRows.Select(row => row.Exhibit.Id).Distinct().ToArray();
             try
             {
+                var confirmed = await ConfirmHandler("Удаление из группы",
+                    $"Убрать выбранные записи ({ids.Length}) из группы «{group.Code}»?\n\nСами выставки останутся в базе.");
+                if (!confirmed) return;
                 int removed = _nirGroupRepo.RemoveMembers(group.Code, ids);
                 RefreshNirGroup();
                 Status = NirGroupMessage = $"Из группы исключено: {removed}.";
@@ -381,8 +386,8 @@ namespace SQLWerk.ViewModels
             var entries = NirGroupRows.Select(r => r.Exhibit).ToList();
             var rubricNames = Grnti.GroupBy(g => g.Codrub ?? "").ToDictionary(g => g.Key, g => g.First().Rubrika);
             var rubrics = entries.SelectMany(r => GetMainRubrics(r.Grnti)).Distinct().OrderBy(c => c)
-                .Select(c => rubricNames.TryGetValue(c, out var name) ? $"{c} — {name}" : c);
-            GroupRubrics = "Рубрики: " + JoinSummary(rubrics);
+                .Select(c => rubricNames.TryGetValue(c, out var name) ? name : null);
+            GroupRubrics = "Темы: " + JoinSummary(rubrics);
             GroupRegions = "Регионы: " + JoinSummary(entries.Select(r => string.IsNullOrWhiteSpace(r.OblName) ? r.Obl : r.OblName));
             GroupDistricts = "Федеральные округа: " + JoinSummary(entries.Select(r => r.Region));
             if (ShowNirGroups)
@@ -530,7 +535,7 @@ namespace SQLWerk.ViewModels
             Grnti = new ObservableCollection<GrntiTableRow>(_grntiRepo.GetAll());
 
             ExhibitEditViewModel.VuzNames = Vuzes.GroupBy(v => v.Codvuz).ToDictionary(g => g.Key,
-                g => (string.IsNullOrWhiteSpace(g.First().Z1Full) ? g.First().Z1 : g.First().Z1Full) ?? g.First().Z2 ?? "Без названия");
+                g => (g.First().Z2 ?? "").Trim());
             ExhibitEditViewModel.VuzCodes = Vuzes
                 .Select(v => v.Codvuz)
                 .Where(c => c > 0)
@@ -538,6 +543,9 @@ namespace SQLWerk.ViewModels
                 .OrderBy(c => c)
                 .Select(c => c.ToString())
                 .ToList();
+
+            ExhibitEditViewModel.VuzSuggestions = ExhibitEditViewModel.VuzNames.Where(v => v.Key > 0).OrderBy(v => v.Key)
+                .Select(v => new VuzCodeSuggestion(v.Key.ToString(), v.Value)).ToList();
 
             ExhibitEditViewModel.GrntiRubrics = Grnti
                 .Select(g => g.Codrub ?? "")

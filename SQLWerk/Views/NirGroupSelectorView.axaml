@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SQLWerk.ViewModels" xmlns:models="using:SQLWerk.Models"
+             x:Class="SQLWerk.Views.NirGroupSelectorView" x:DataType="vm:MainWindowViewModel">
+    <Border Height="170" Padding="8" Background="#F7FBFE" BorderBrush="#B7D8F1" BorderThickness="1" CornerRadius="4">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <TextBox x:Name="GroupSearch" PlaceholderText="Поиск по названию и комментарию" TextChanged="OnSearchChanged"/>
+            <ListBox x:Name="GroupChoices" Grid.Row="1" Margin="0,5" SelectionMode="Single"
+                     SelectionChanged="OnGroupChosen" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.IsScrollChainingEnabled="False">
+                <ListBox.ItemTemplate><DataTemplate x:DataType="models:NirGroup">
+                    <StackPanel Spacing="2" Margin="2">
+                        <TextBlock Text="{Binding Code}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Comment}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                   FontSize="12" ToolTip.Tip="{Binding Comment}"/>
+                    </StackPanel>
+                </DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+            <Button Grid.Row="2" Content="Создать группу" Click="OnCreate" HorizontalAlignment="Left"/>
+        </Grid>
+    </Border>
+</UserControl>
