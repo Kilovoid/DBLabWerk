@@ -812,6 +812,13 @@ namespace SQLWerk.ViewModels
                 var removed = _crossValidator.RemoveInvalidExhibits(
                     _exhibitRepo, _vuzRepo, _grntiRepo);
 
+                // Group membership belongs to the previous set of imported records.
+                _nirGroupRepo.ClearGroups();
+                SelectedNirGroup = null;
+                _preferredNirGroupCode = null;
+                NirGroupSearch = "";
+                NirGroupCommentSearch = "";
+
                 ReloadFromDatabase();
 
                 if (_logProvider.HasWarnings)

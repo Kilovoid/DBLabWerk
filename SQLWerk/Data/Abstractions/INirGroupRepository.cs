@@ -10,6 +10,7 @@ public interface INirGroupRepository
     void CreateGroup(string code, string comment = "");
     void UpdateGroup(string originalCode, string code, string comment);
     bool DeleteGroup(string groupCode);
+    void ClearGroups();
     List<long> GetExhibitIds(string groupCode);
     int AddMembers(string groupCode, IEnumerable<long> exhibitIds);
     int AddMembers(IEnumerable<string> groupCodes, IEnumerable<long> exhibitIds);
