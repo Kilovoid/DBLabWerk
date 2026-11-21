@@ -330,6 +330,7 @@
                                 </Expander>
                             </StackPanel>
                         </Border>
+                        <views:GroupReportActions IsVisible="{Binding HasSelectedNirGroup}"/>
                         <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
                     <DataGrid x:Name="NirGroupsGrid" ItemsSource="{Binding NirGroupRows}" Height="{Binding #GroupDetailsScroll.Viewport.Height}"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
