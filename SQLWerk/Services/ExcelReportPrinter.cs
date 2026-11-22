@@ -7,7 +7,7 @@ namespace SQLWerk.Services;
 
 public static class ExcelReportPrinter
 {
-    public static async Task<string> OpenAsync(string path)
+    public static async Task<string> OpenAsync(string path, Func<Task>? beforePdfFallback = null)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -21,6 +21,7 @@ public static class ExcelReportPrinter
                 // The saved workbook is retained; use the same PDF fallback in every case.
             }
         }
+        if (beforePdfFallback != null) await beforePdfFallback();
         return await Task.Run(() => ReportPdfFallback.Open(path));
     }
 

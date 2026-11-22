@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -44,8 +45,12 @@ public partial class GroupReportActions : UserControl
                 && _saved.TryGetValue(group.Code, out var path) && File.Exists(path);
     }
 
-    private async void OnSaveReport(object? sender, RoutedEventArgs e)
+    private async void OnSaveExcel(object? sender, RoutedEventArgs e) => await SaveReportAsync("xlsx");
+    private async void OnSavePdf(object? sender, RoutedEventArgs e) => await SaveReportAsync("pdf");
+
+    private async Task SaveReportAsync(string extension)
     {
+        this.FindControl<Button>("SaveReportButton")?.Flyout?.Hide();
         if (_busy || _vm?.SelectedNirGroup is not { } group || TopLevel.GetTopLevel(this) is not { } owner) return;
         var vm = _vm;
         _busy = true;
@@ -66,18 +71,23 @@ public partial class GroupReportActions : UserControl
             using var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
                 Title = "Сохранить отчёт", SuggestedStartLocation = initialFolder,
-                SuggestedFileName = $"Отчёт {state.NextNumber} {report.CreatedAt:dd.MM.yyyy}.xlsx",
-                DefaultExtension = "xlsx", ShowOverwritePrompt = true,
-                FileTypeChoices = new[] { new FilePickerFileType("Excel") { Patterns = new[] { "*.xlsx" } } }
+                SuggestedFileName = $"Отчёт {state.NextNumber} {report.CreatedAt:dd.MM.yyyy}.{extension}",
+                DefaultExtension = extension, ShowOverwritePrompt = true,
+                FileTypeChoices = new[] { new FilePickerFileType(extension == "pdf" ? "PDF" : "Excel")
+                    { Patterns = new[] { $"*.{extension}" } } }
             });
             if (file == null) return;
             var path = file.TryGetLocalPath();
             if (string.IsNullOrWhiteSpace(path))
-                throw new InvalidOperationException("Выберите папку на компьютере для сохранения Excel.");
-            if (!Path.GetExtension(path).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Имя файла должно заканчиваться на .xlsx.");
+                throw new InvalidOperationException("Выберите папку на компьютере для сохранения отчёта.");
+            if (!Path.GetExtension(path).Equals($".{extension}", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Имя файла должно заканчиваться на .{extension}.");
             path = Path.GetFullPath(path);
-            await Task.Run(() => FormationReportWriter.Save(path, report));
+            await Task.Run(() =>
+            {
+                if (extension == "pdf") ReportPdfFallback.Save(path, report);
+                else FormationReportWriter.Save(path, report);
+            });
             _saved[report.Group] = path;
             try { _preferences.Remember(state.NextNumber, Path.GetDirectoryName(path)!); }
             catch (Exception ex)
@@ -91,6 +101,33 @@ public partial class GroupReportActions : UserControl
         finally { _busy = false; RefreshButtons(); }
     }
 
+    private async Task ShowPdfWarningAsync()
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        var close = new Button { Content = "ОК", IsDefault = true,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+        var dialog = new Window
+        {
+            Title = "Печать через PDF", Width = 460, SizeToContent = SizeToContent.Height,
+            CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(20), Spacing = 16,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "Microsoft Excel не установлен или не смог открыть печать. Будет сформирован PDF и открыт его предпросмотр.",
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                    },
+                    close
+                }
+            }
+        };
+        close.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(owner);
+    }
+
     private async void OnPrintReport(object? sender, RoutedEventArgs e)
     {
         if (_busy || _vm?.SelectedNirGroup is not { } group || !_saved.TryGetValue(group.Code, out var path)) return;
@@ -100,7 +137,10 @@ public partial class GroupReportActions : UserControl
         try
         {
             if (!File.Exists(path)) throw new FileNotFoundException("Сохранённый отчёт не найден. Сохраните его заново.");
-            vm.NirGroupMessage = await ExcelReportPrinter.OpenAsync(path);
+            if (Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+                vm.NirGroupMessage = ReportPdfFallback.OpenPdf(path);
+            else
+                vm.NirGroupMessage = await ExcelReportPrinter.OpenAsync(path, ShowPdfWarningAsync);
         }
         catch (Exception ex) { vm.NirGroupMessage = $"Не удалось открыть печать: {ex.Message}"; }
         finally { _busy = false; RefreshButtons(); }

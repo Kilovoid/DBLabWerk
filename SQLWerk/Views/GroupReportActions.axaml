@@ -1,7 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SQLWerk.Views.GroupReportActions">
     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
-        <Button x:Name="SaveReportButton" Content="Сохранить отчёт" Click="OnSaveReport"/>
+        <Button x:Name="SaveReportButton" Content="Сформировать отчёт ▾">
+            <Button.Flyout>
+                <MenuFlyout>
+                    <MenuItem Header="Excel" Click="OnSaveExcel"/>
+                    <MenuItem Header="PDF" Click="OnSavePdf"/>
+                </MenuFlyout>
+            </Button.Flyout>
+        </Button>
         <Button x:Name="PrintReportButton" Content="Печать" IsEnabled="False" Click="OnPrintReport"/>
     </StackPanel>
 </UserControl>
