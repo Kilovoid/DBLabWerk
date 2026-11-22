@@ -100,9 +100,7 @@ public partial class GroupReportActions : UserControl
         try
         {
             if (!File.Exists(path)) throw new FileNotFoundException("Сохранённый отчёт не найден. Сохраните его заново.");
-            var preview = await ExcelReportPrinter.OpenAsync(path);
-            vm.NirGroupMessage = preview ? "Просмотр печати закрыт."
-                : "Отчёт открыт в приложении для Excel. Для печати нажмите Ctrl+P.";
+            vm.NirGroupMessage = await ExcelReportPrinter.OpenAsync(path);
         }
         catch (Exception ex) { vm.NirGroupMessage = $"Не удалось открыть печать: {ex.Message}"; }
         finally { _busy = false; RefreshButtons(); }

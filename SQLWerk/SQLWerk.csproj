@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+    <EmbeddedResource Include="ReportFonts/*.ttf" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +24,8 @@
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Dapper" Version="2.1.86" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+    <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.3" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="ExcelDataReader" Version="3.9.0" />
     <PackageReference Include="ExcelDataReader.DataSet" Version="3.9.0" />
