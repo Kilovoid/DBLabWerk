@@ -330,18 +330,20 @@
                                 </Expander>
                             </StackPanel>
                         </Border>
+                        <views:ReportFormatActions IsVisible="{Binding HasSelectedNirGroup}"/>
                         <TextBlock Text="{Binding NirGroupMessage}" TextWrapping="Wrap"/>
-                    <DataGrid x:Name="NirGroupsGrid" ItemsSource="{Binding NirGroupRows}" Height="{Binding #GroupDetailsScroll.Viewport.Height}"
+                    <views:GroupDataGrid x:Name="NirGroupsGrid" ItemsSource="{Binding NirGroupRows}"
+                              MaxHeight="{Binding #GroupDetailsScroll.Viewport.Height}" VerticalAlignment="Top"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.IsScrollChainingEnabled="False"
                               SelectionMode="Extended" SelectionChanged="OnGridSelectionChanged"
                               AutoGenerateColumns="False" IsReadOnly="True">
-                        <DataGrid.ContextMenu>
+                        <views:GroupDataGrid.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Убрать из группы" Command="{Binding RemoveFromNirGroupCommand}"/>
                             </ContextMenu>
-                        </DataGrid.ContextMenu>
-                        <DataGrid.Columns>
+                        </views:GroupDataGrid.ContextMenu>
+                        <views:GroupDataGrid.Columns>
 							<DataGridTextColumn Header="Регистрационный номер" Binding="{Binding Exhibit.Regnumber}" />
 							<DataGridTextColumn Header="Признак формы НИР" Binding="{Binding Exhibit.Type}" />
 							<DataGridTextColumn Header="Наименование проекта" Binding="{Binding Exhibit.Subject}" />
@@ -363,8 +365,8 @@
 							<DataGridTextColumn Header="Регион" Binding="{Binding Exhibit.OblName}" />
 							<DataGridTextColumn Header="Статус" Binding="{Binding Exhibit.GrVed}" />
 							<DataGridTextColumn Header="Специализация" Binding="{Binding Exhibit.Prof}" />
-						</DataGrid.Columns>
-                    </DataGrid>
+						</views:GroupDataGrid.Columns>
+                    </views:GroupDataGrid>
                     </StackPanel>
                     </ScrollViewer>
                 </Grid>

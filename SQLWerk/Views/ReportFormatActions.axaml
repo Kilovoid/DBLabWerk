@@ -1,0 +1,7 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SQLWerk.Views.ReportFormatActions">
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
+        <Button x:Name="SaveReportButton" Content="Сформировать отчёт ▾" Click="OnChooseFormat"/>
+        <Button x:Name="PrintReportButton" Content="Печать" IsEnabled="False" Click="OnPrintReport"/>
+    </StackPanel>
+</UserControl>
