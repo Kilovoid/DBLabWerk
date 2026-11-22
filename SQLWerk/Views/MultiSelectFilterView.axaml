@@ -43,19 +43,24 @@
             <TextBlock Grid.Column="1" Text="▾" Margin="6,0,0,0" FontSize="10" VerticalAlignment="Center"/>
         </Grid></Button.Content>
         <Button.Flyout>
-            <Flyout Placement="BottomEdgeAlignedLeft" ShowMode="Standard" Opening="OnFilterOpening">
+            <Flyout Placement="BottomEdgeAlignedLeft" ShowMode="Standard" Opening="OnFilterOpening" Closed="OnFilterClosed">
                 <StackPanel Width="280" Spacing="5">
                     <TextBox Text="{Binding SearchText, Mode=TwoWay}" PlaceholderText="Поиск" FontSize="12"/>
                     <CheckBox Classes="value" Content="Все" IsThreeState="False" IsChecked="{Binding AllVisibleSelected, Mode=TwoWay}"/>
-                    <ScrollViewer Height="210" HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding VisibleValues}">
-                            <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:FilterValueViewModel">
+                    <ListBox x:Name="FilterValues" Loaded="OnValuesListLoaded" Height="210" ItemsSource="{Binding VisibleValues}"
+                             BorderThickness="0" Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem"><Setter Property="Padding" Value="0"/>
+                                <Setter Property="MinHeight" Value="0"/></Style>
+                        </ListBox.Styles>
+                            <ListBox.ItemTemplate><DataTemplate x:DataType="vm:FilterValueViewModel">
                                 <CheckBox Classes="value" IsChecked="{Binding IsSelected, Mode=TwoWay}" HorizontalAlignment="Stretch">
                                     <TextBlock Text="{Binding Label}" TextWrapping="Wrap" FontSize="12"/>
                                 </CheckBox>
-                            </DataTemplate></ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                            </DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
                         <Button Classes="popup" Content="ОК" Click="OnApply" MinWidth="60"/>
                         <Button Classes="popup" Content="Отмена" Click="OnCancel"/>
