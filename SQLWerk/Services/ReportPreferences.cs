@@ -6,6 +6,7 @@ namespace SQLWerk.Services;
 
 public sealed class ReportPreferences
 {
+    private const long MaximumReportNumber = 1000;
     private readonly string _connectionString;
     public ReportPreferences()
     {
@@ -30,14 +31,18 @@ public sealed class ReportPreferences
         command.CommandText = "SELECT LastNumber, Directory FROM ReportPreferences WHERE Id=1;";
         using var reader = command.ExecuteReader();
         reader.Read();
-        return (checked(reader.GetInt64(0) + 1), reader.GetString(1));
+        var lastNumber = reader.GetInt64(0);
+        var nextNumber = lastNumber >= MaximumReportNumber || lastNumber < 0 ? 1 : lastNumber + 1;
+        return (nextNumber, reader.GetString(1));
     }
 
     public void Remember(long number, string directory)
     {
+        if (number < 1 || number > MaximumReportNumber)
+            throw new ArgumentOutOfRangeException(nameof(number));
         using var connection = Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE ReportPreferences SET LastNumber=MAX(LastNumber,$number), Directory=$directory WHERE Id=1;";
+        command.CommandText = "UPDATE ReportPreferences SET LastNumber=$number, Directory=$directory WHERE Id=1;";
         command.Parameters.AddWithValue("$number", number);
         command.Parameters.AddWithValue("$directory", directory);
         command.ExecuteNonQuery();
